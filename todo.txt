@@ -1,0 +1,5 @@
+#2012-12-13
+1. add object binding for bmap.map bmap.imshow
+2. add the same for gnc.Ncdata.map and gnc.Ncdata.imshow
+
+3. reorganize the sturcutre for Pdata.py

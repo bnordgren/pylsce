@@ -1,0 +1,49 @@
+'''
+Define the site related information.
+
+!!please note the sequence: CA-NS/CA-SF/US-Bn!!
+
+NSlistburn=['CA-NS1 1850','CA-NS2 1930','CA-NS3 1964','CA-NS4 1964','CA-NS5 1981','CA-NS6 1989','CA-NS7 1998']
+NSburn=[1850,1930,1964,1964,1981,1989,1998]
+NSlist=['CA-NS1','CA-NS2','CA-NS3','CA-NS4','CA-NS5','CA-NS6','CA-NS7']
+SFlistburn=['CA-SF1 1977','CA-SF2 1989','CA-SF3 1998']
+SFburn=[1977,1989,1998]
+SFlist=['CA-SF1','CA-SF2','CA-SF3']
+Bnlistburn=['US-Bn1 1920','US-Bn2 1987','US-Bn3 1999']
+Bnlist=['US-Bn1','US-Bn2','US-Bn3']
+Bnburn=[1920,1987,1999]
+'''
+
+NSlistburn=['CA-NS1 1850','CA-NS2 1930','CA-NS3 1964','CA-NS4 1964','CA-NS5 1981','CA-NS6 1989','CA-NS7 1998']
+NSburn=[1850,1930,1964,1964,1981,1989,1998]
+NSlist=['CA-NS1','CA-NS2','CA-NS3','CA-NS4','CA-NS5','CA-NS6','CA-NS7']
+SFlistburn=['CA-SF1 1977','CA-SF2 1989','CA-SF3 1998']
+SFburn=[1977,1989,1998]
+SFlist=['CA-SF1','CA-SF2','CA-SF3']
+Bnlistburn=['US-Bn1 1920','US-Bn2 1987','US-Bn3 1999']
+Bnlist=['US-Bn1','US-Bn2','US-Bn3']
+Bnburn=[1920,1987,1999]
+
+alllistburn=['CA-NS1 1850','CA-NS2 1930','CA-NS3 1964','CA-NS4 1964','CA-NS5 1981','CA-NS6 1989','CA-NS7 1998','CA-SF1 1977','CA-SF2 1989','CA-SF3 1998','US-Bn1 1920','US-Bn2 1987','US-Bn3 1999']
+
+#alllistburndic={
+#    'CA-NS1 1850',
+#    'CA-NS2 1930',
+#    'CA-NS3 1964',
+#    'CA-NS4 1964',
+#    'CA-NS5 1981',
+#    'CA-NS6 1989',
+#    'CA-NS7 1998',
+#    'CA-SF1 1977',
+#    'CA-SF2 1989',
+#    'CA-SF3 1998',
+#    'US-Bn1 1920',
+#    'US-Bn2 1987',
+#    'US-Bn3 1999'}
+
+alllist=['CA-NS1','CA-NS2','CA-NS3','CA-NS4','CA-NS5','CA-NS6','CA-NS7','CA-SF1','CA-SF2','CA-SF3','US-Bn1','US-Bn2','US-Bn3']
+allburn=[1850,1930,1964,1964,1981,1989,1998,1977,1989,1998,1920,1987,1999]
+allosy=[2002,2001,2001,2002,2001,2001,2002,2003,2003,2003,2003,2003,2003]
+alloey=[2005,2005,2005,2004,2005,2005,2005,2005,2005,2005,2003,2003,2003]
+
+
