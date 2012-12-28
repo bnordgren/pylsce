@@ -192,7 +192,7 @@ def iteflat(inlist):
 
 def Dic_Test_Empty_Dic(indic):
     """
-    check if indic is a (nested) empty dictionary. 
+    check if indic is a (nested) empty dictionary.
     """
     if indic.keys()!=[]:
         for key,keydata in indic.items():
@@ -274,9 +274,11 @@ class Pdata(object):
     _plot_attr_default.update(_bar_attr_default)
 
 
+    #not used
     def _get_plot_attr_list_except(self,plottype):
         return StringListAnotB(Pdata._plot_attr_keylist_all, Pdata._plot_attr_dic[plottype])
 
+    #tested
     def _plot_attr_keylist_check(self):
         inlist = Pdata._plot_attr_keylist_all
         if any(inlist.count(x) > 1 for x in inlist):
@@ -287,9 +289,13 @@ class Pdata(object):
     def __init__(self):
         self.data={}
         self._plot_attr_keylist_check()
+        if self.data == {}:
+            self._taglist = []
+
 
     def add_tag(self,tag=None):
         self.data[tag]=Pdata._new_entry.copy()
+        self._taglist.append(tag)
     def _add_indata_by_tag_and_column(self,indata,tag,column):
         self.data[tag][column]=indata
     def addx(self,indata,tag):
@@ -317,36 +323,49 @@ class Pdata(object):
 
     def add_entry_by_dic(self,**kwargs):
         """
-        Add a complete entry by dictionary. note that kwargs[key] must a have keys()=['x','y',...]
-        Arguments:
-            kwargs: kwargs are tag/tag_value pairs, tag_value is again a dict with 'x'/'y'/'yerrh' ... etc as keys.
+        Add a complete entry by dictionary. note that kwargs[key] must
+            have keys()=['x','y',...]
+        Parameters:
+        ----------
+        kwargs: kwargs are tag/tag_value pairs, tag_value is again a dict
+            with 'x'/'y'/'yerrh' ... etc as keys.
+
         """
         for tag,tag_value in kwargs.items():
             self.add_tag(tag)
             for attr_name,attr_value in tag_value.items():
                 self.data[tag][attr_name] = attr_value
 
-    def add_entry_noerror(self,x,y,tag):
+    def add_entry_noerror(self,x=None,y=None,tag=None):
         self.add_tag(tag)
         if x == None:
             self.addx(np.arange(len(y))+1,tag)
         else:
-            self.addx(x,tag)
+            if len(y)!=len(x):
+                raise ValueError('''lenght of ydata for 'tag' {0} is {1},
+                    not equal to length of xdata with length of {2}'''
+                    .format(tag,len(y),len(x)))
+            else:
+                self.addx(x,tag)
         self.addy(y,tag)
+
     def add_entry_singleYerror(self,x,y,yerr,tag):
         self.add_tag(tag)
         self.addx(x,tag)
         self.addy(y,tag)
         self.addyerrl(yerr,tag)
+
     def add_entry_singleYerror3(self,data_array,tag):
         """
-        add an entry by giving one single 3Xn np.ndarray, with 1st row as X, 2nd row as Y, 3rd row as Yerr.
+        add an entry by giving one single 3Xn np.ndarray, with 1st row as X,
+            2nd row as Y, 3rd row as Yerr.
         """
         x=data_array[0];y=data_array[1];yerr=data_array[2]
         self.add_tag(tag)
         self.addx(x,tag)
         self.addy(y,tag)
         self.addyerrl(yerr,tag)
+
     def add_entry_doubleYerror(self,x,y,yerrl,yerrh,tag):
         self.add_tag(tag)
         self.addx(x,tag)
@@ -356,32 +375,30 @@ class Pdata(object):
 
     def add_entry_sharex_noerror_by_dic(self,ydic,x=None):
         """
-        Add several tags which share the same x data; ydic will be a dictionary(or pandas DataFrame) with tag:ydata pairs. 
-        the length of x must be equal to all that of ydic[tag]
+        Add several tags which share the same x data; ydic will be a dictionary
+            (or pandas DataFrame) with tag:ydata pairs. the length of x must
+            be equal to all that of ydic[tag]
         """
         if isinstance(ydic,pa.DataFrame):
             newydic={}
             for key in ydic.columns:
                 newydic[key]=np.array(ydic[key])
             ydic=newydic
+
         for tag,ydata in ydic.items():
-            if x==None:
-                x=np.arange(len(ydata))+1
-            else:
-                pass
-            if len(ydata)!=len(x):
-                raise ValueError("lenght of ydata for 'tag' {0} is {1}, not equal to length of xdata with length of {2}".format(tag,len(ydata),len(x)))
-            else:
-                self.add_entry_noerror(x=x,y=ydata,tag=tag)
+            self.add_entry_noerror(x=x,y=ydata,tag=tag)
 
     def add_entry_noerror_by_dic_default_xindex(self,ydic):
+        print "Warning! this will be deprecated!"
         for tag,ydata in ydic.items():
             x=np.arange(len(ydata))+1
             self.add_entry_noerror(x=x,y=ydata,tag=tag)
 
+    #TODO: no distinction has been made for keys 'x' and 'scolor'
     def subset_end(self,end_num):
         """
-        Subset the pdata by retaining only the last 'end_num' number of last elements.
+        Subset the pdata by retaining only the last 'end_num' number of
+            last elements.
         """
         pdata=self.copy()
         pdatanew=Pdata()
@@ -389,6 +406,7 @@ class Pdata(object):
             pdatanew.data[tag]=Dic_Subset_End(pdata.data[tag],end_num)
         return pdatanew
 
+    #TODO: same problem as subset_begin
     def subset_begin(self,end_num):
         """
         Subset the pdata by retaining only the beginning 'end_num' number of last elements.
@@ -426,10 +444,37 @@ class Pdata(object):
 
 
     def list_tags(self,tagkw=None):
+        """
+        Method to formally retrieve Pdata._taglist
+        """
         if tagkw==None:
-            return self.data.keys()
+            return self._taglist
         else:
-            return FilterStringList(tagkw,self.data.keys())
+            return FilterStringList(tagkw, self._taglist)
+
+    def list_keys_for_tag(self,tag):
+        """
+        list the keys for the specified tag.
+        """
+        return self.data[tag].keys()
+
+
+    def set_tag_order(self,tagseq=None):
+        """
+        Set tag order and this order will be kept throughout all the class
+        method when default taglist is used.
+        """
+        if sorted(self._taglist) == sorted(tagseq):
+            self._taglist = tagseq
+        else:
+            raise ValueError('ordered tag list not equal to present taglist')
+
+    def _set_default_tag(self,taglist='all'):
+        if taglist=='all':
+            return self._taglist
+        else:
+            return taglist
+
     def list_attr(self,*attr_name):
         outdic={}
         for tag,tag_data in self.data.items():
@@ -450,15 +495,11 @@ class Pdata(object):
         else:
             return attr_extra_dic
 
-    def get_data_as_dic(self,attr_name,taglist='all',):
+    def get_data_as_dic(self,attr_name,taglist='all'):
         """
         Get the spedcified x/y/yerr... or other attribute data as a dictionary with tags as keys
         """
-        if taglist == 'all':
-            taglist=self.list_tags()
-        else:
-            pass
-
+        taglist = self._set_default_tag(taglist)
         data_dic={}
         for tag in taglist:
             data_dic[tag] = self.data[tag][attr_name]
@@ -469,7 +510,7 @@ class Pdata(object):
         Shift the y data by given shift value in a progressive way, this is mainly for comparing the data with the smae y value in a more sensible way.
         i.e., to shift the data a little bit for aoviding the overlapping of the lines.
         """
-        for i,tag in enumerate(self.data.keys()):
+        for i,tag in enumerate(self._taglist):
             self.data[tag]['y']=self.data[tag]['y']-shift*i
 
     def apply_function(self, func=None, axis=None, taglist='all', copy=False):
@@ -536,7 +577,7 @@ class Pdata(object):
         return valid_key_list,invalid_key_list
 
     def _data_complete_check_all(self):
-        for tag in self.data.keys():
+        for tag in self._taglist:
             _,_=self._data_complete_check_by_tag(tag)
 
     def _get_err_by_tag(self,tag):
@@ -571,7 +612,7 @@ class Pdata(object):
 
     def add_attr_by_tag(self,tagkw=False,**nested_attr_tag_value_dic):
         """
-        add extra base attribute or ploting attribute by using key/keyvalue pairs, keys can principally be any keys of self.data.keys(); but this method is suggested 
+        add extra base attribute or ploting attribute by using key/keyvalue pairs, keys can principally be any keys of self._taglist; but this method is suggested 
         to be used to add attr_name in _extra_base_keylist or _plot_attr_keylist_all
         Note the keyvalue is very flexible:
             1. In case of a single value, it will be broadcast to all tags for the attr concerned.
@@ -623,7 +664,7 @@ class Pdata(object):
                 where tag1_kw1,tag2_kw1 are tags containg keyword tag_kw1, tag3_kw2,tag4_kw2 are tags containg keyword tag_kw2,..
             list_tag_tagvalue_tuple is like [('dry','r'),('wet','b')] where 'dry' and 'wet' are keywords used for classifying tags.
             """
-            tags=self.list_tags()
+            tags=self._taglist
             full_tagkw_list=[]
             for tagkw,tagkwvalue in list_tagkw_tagkwvalue_tuple:
                 for tag in FilterStringList(tagkw,tags):
@@ -646,10 +687,10 @@ class Pdata(object):
                         if len(tag_attr_value_dic)!=len(self.data):
                             raise ValueError('data has len {0} but input list len is {1}'.format(len(self.data),len(tag_attr_value_dic)))
                         else:
-                            final_dic=dict(zip(self.data.keys(),tag_attr_value_dic))
+                            final_dic=dict(zip(self._taglist,tag_attr_value_dic))
                 #assume a single value (number or string)
                 else:
-                    final_dic=dict(zip(self.data.keys(),len(self.data.keys())*[tag_attr_value_dic]))
+                    final_dic=dict(zip(self._taglist, len(self._taglist)*[tag_attr_value_dic]))
             else:
                 final_dic=tag_attr_value_dic
             #apply value to tag
@@ -718,7 +759,7 @@ class Pdata(object):
         """
         if tagkw==True:
             group_dic_final={}
-            tags=self.list_tags()
+            tags=self._taglist
             for newtag,newtag_tagkw in group_dic.items():
                 group_dic_final[newtag]=FilterStringList(newtag_tagkw,tags)
         else:
@@ -746,16 +787,11 @@ class Pdata(object):
         return pdata
 
     def regroup_data_by_tag_keyword(self,tag_keyword):
-        tags=self.list_tags()
+        tags=self._taglist
         return self.regroup_data_by_tag(FilterStringList(tag_keyword,tags))
 
 
 
-    def _set_default_tag(self,taglist='all'):
-        if taglist=='all':
-            return self.data.keys()
-        else:
-            return taglist
 
     def leftshift(self,shift=0,taglist='all'):
         taglist=self._set_default_tag(taglist)
@@ -804,7 +840,7 @@ class Pdata(object):
         return self.Scatter_PathC
 
     def scattertag(self,axes,taglist='all',**kwargs):
-        self._set_default_tag(taglist)
+        taglist = self._set_default_tag(taglist)
         if hasattr(self,'Scatter_PathC') and self.Scatter_PathC!={}:
             self.remove_scatter_by_tag(taglist)
         self._data_complete_check_all()
@@ -819,28 +855,6 @@ class Pdata(object):
                 print 'tag & tag_kwargs',tag,tag_kwargs
                 self.Scatter_PathC[tag]=self._gscatter(axes,tag_data['x'],tag_data['y'],label=tag_data['label'],**tag_kwargs)
         return self.Scatter_PathC
-
-    #2012-09-13 the diff between check_axes and check_axes_2 is the first use **kwargs and the second not.
-    def check_axes(plot_fn):
-        def _check_axes_wrapped_plot_fn(self,axes=None,*pos, **kwargs):
-            if not axes:
-                fig = plt.figure()
-                axes = fig.add_subplot(111)
-                return plot_fn(self,axes,*pos, **kwargs)
-            else:
-                return plot_fn(self,axes,*pos, **kwargs)
-        return _check_axes_wrapped_plot_fn
-
-
-    def check_axes_2(plot_fn):
-        def _check_axes_wrapped_plot_fn(self,axes=None,*pos):
-            if not axes:
-                fig = plt.figure()
-                axes = fig.add_subplot(111)
-                return plot_fn(self,axes,*pos)
-            else:
-                return plot_fn(self,axes,*pos)
-        return _check_axes_wrapped_plot_fn
 
     def plot(self,axes=None,**kwargs):
         axes=_replace_none_axes(axes)
@@ -880,7 +894,7 @@ class Pdata(object):
         g.ProxyLegend, mat.patches.Rectangle
         """
         #build the new pdata that stores the cumsum data
-        tagseq = _replace_none_by_given(tagseq,self.list_tags())
+        tagseq = _replace_none_by_given(tagseq,self._taglist)
         arr = self.Vstack_By_Tag(tagseq)
         arr_cumsum = arr[::-1].cumsum(axis=0)[::-1]  #we want the cumsum with direction from bottom-->top.
         pdnew = self.copy()
@@ -956,6 +970,7 @@ class Pdata(object):
                     print "the scatter facecolor for tag '{0}' is none, scatter edgecolor is used as errorbar color.".format(tag)
                     colorlist.append(self.Scatter_PathC[tag].get_edgecolor()[0])
         self.add_attr_by_tag(ecolor=dict(zip(taglist,colorlist)))
+        return dict(zip(taglist,colorlist))
 
     def _set_ecolor_by_bar(self):
         taglist=[]
@@ -1218,7 +1233,7 @@ class Pdata(object):
     def creat_list_of_axes_by_tagseq(self,force_axs=None,tagseq=None,ncols=1,sharex=True,**subplot_kwargs):
         """
         """
-        tag_list=_replace_none_by_given(tagseq,self.list_tags())
+        tag_list=_replace_none_by_given(tagseq,self._taglist)
         num=len(tag_list)
         axs = _build_list_of_axes_by_num(num,force_axs=force_axs,ncols=ncols,sharex=sharex,**subplot_kwargs)
         return dict(zip(tag_list,axs))
@@ -1246,7 +1261,7 @@ class Pdata(object):
             force_taglist: could be used to plot for only selected tags, or to force the sequence of tags.
         """
         if force_taglist == None:
-            tag_list=self.list_tags()
+            tag_list=self._taglist
         else:
             tag_list=force_taglist
         num=len(tag_list)
