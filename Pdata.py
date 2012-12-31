@@ -286,16 +286,19 @@ class Pdata(object):
 
 
 
-    def __init__(self):
-        self.data={}
+    def __init__(self,newdata={}):
         self._plot_attr_keylist_check()
+        self.data=newdata.copy()
         if self.data == {}:
             self._taglist = []
-
+        else:
+            self._taglist = self.data.keys()
+            self._data_complete_check_all()
 
     def add_tag(self,tag=None):
         self.data[tag]=Pdata._new_entry.copy()
         self._taglist.append(tag)
+
     def _add_indata_by_tag_and_column(self,indata,tag,column):
         self.data[tag][column]=indata
     def addx(self,indata,tag):
@@ -321,6 +324,7 @@ class Pdata(object):
             indata=self._broadcast_scalar_byx(tag,indata)
         self._add_indata_by_tag_and_column(indata,tag,'yerrh')
 
+    #TESTED
     def add_entry_by_dic(self,**kwargs):
         """
         Add a complete entry by dictionary. note that kwargs[key] must
@@ -409,7 +413,8 @@ class Pdata(object):
     #TODO: same problem as subset_begin
     def subset_begin(self,end_num):
         """
-        Subset the pdata by retaining only the beginning 'end_num' number of last elements.
+        Subset the pdata by retaining only the beginning 'end_num' number of
+            last elements.
         """
         pdata=self.copy()
         pdatanew=Pdata()
@@ -418,18 +423,24 @@ class Pdata(object):
         return pdatanew
 
     def copy(self):
-        pdata=Pdata()
-        pdata.data=copy.deepcopy(self.data)
+        data=copy.deepcopy(self.data)
+        pdata=Pdata(data)
         return pdata
 
+    #NON_TESTED
     def add_entry_df_groupby_column(self,indf,tag_col=None,**kwargs):
         """
-        Purpose: Add tag:tag_dic pairs by grouping a pandas DataFrame by a column. The unique values in the column which is used as groupby will serve as 
-            tags. x,y,xerrl... etc. are specified by using kwargs. supported keywords: ['x','y','xerrl','xerrh','yerrl','yerrh']
+        Purpose: Add tag:tag_dic pairs by grouping a pandas DataFrame by a
+            column. The unique values in the column which is used as
+            groupby will serve as tags. x,y,xerrl... etc. are specified
+            by using kwargs. supported keywords: ['x','y','xerrl','xerrh',
+            'yerrl','yerrh']
         Example:
-            >>> comgpp_fluxdailyobe=pa.read_csv('/home/chaoyue/python/testdata/comgpp_fluxdailyobe_data.csv')
+            >>> comgpp_fluxdailyobe=pa.read_csv('/home/chaoyue/python/
+                testdata/comgpp_fluxdailyobe_data.csv')
             >>> pdata=Pdata.Pdata()
-            >>> pdata.add_entry_df_groupby_column(comgpp_fluxdailyobe,tag_col='site',x='mod',y='GEP_Amiro')
+            >>> pdata.add_entry_df_groupby_column(comgpp_fluxdailyobe,
+                tag_col='site',x='mod',y='GEP_Amiro')
             >>> pdata.add_attr_by_tag(scolor=['g','b','r'])
             >>> fig,ax=g.Create_1Axes()
             >>> pdata.scatter(ax)
@@ -497,7 +508,8 @@ class Pdata(object):
 
     def get_data_as_dic(self,attr_name,taglist='all'):
         """
-        Get the spedcified x/y/yerr... or other attribute data as a dictionary with tags as keys
+        Get the spedcified x/y/yerr... or other attribute data as a
+            dictionary with tags as keys
         """
         taglist = self._set_default_tag(taglist)
         data_dic={}
@@ -507,19 +519,23 @@ class Pdata(object):
 
     def shift_ydata(self,shift=None):
         """
-        Shift the y data by given shift value in a progressive way, this is mainly for comparing the data with the smae y value in a more sensible way.
-        i.e., to shift the data a little bit for aoviding the overlapping of the lines.
+        Shift the y data by given shift value in a progressive way, this
+            is mainly for comparing the data with the smae y value in a
+            more sensible way. i.e., to shift the data a little bit for
+            aoviding the overlapping of the lines.
         """
         for i,tag in enumerate(self._taglist):
             self.data[tag]['y']=self.data[tag]['y']-shift*i
 
     def apply_function(self, func=None, axis=None, taglist='all', copy=False):
         """
-        Purpose:
-            Apply a function either 'x' or 'y' axis or 'both' or 'diff', if axis=='diff', func should be supplied with a dictionary by using ('x'/'y',
-            x_func/y_func) pairs.
-        Arguments:
-            copy: return if copy if copy==True.
+        Apply a function either 'x' or 'y' axis or 'both' or 'diff', if
+            axis=='diff', func should be supplied with a dictionary by
+            using ('x'/'y',x_func/y_func) pairs.
+
+        Parameters:
+        -----------
+        copy: return if copy if copy==True.
         """
         if copy == True:
             pdtemp = self.copy()
@@ -542,9 +558,11 @@ class Pdata(object):
                         pdtemp.data[tag]['y']=func['y'](pdtemp.data[tag]['y'])
                     except KeyError,error:
                         print error
-                        print "func should be supplied with a dictionary by using ('x'/'y', x_func/y_func) pairs."
+                        print """func should be dictionary of ('x'/'y',
+                            x_func/y_func) pairs."""
                 else:
-                    raise ValueError("func should be supplied with a dictionary by using ('x'/'y', x_func/y_func) pairs.")
+                    raise ValueError("""func should be a dictionary
+                        by using ('x'/'y', x_func/y_func) pairs.""")
             else:
                 raise ValueError("Unknown axis value")
 
@@ -553,7 +571,8 @@ class Pdata(object):
 
     def _data_complete_check_by_tag(self,tag):
         """
-        check if all the 6 base keys with value not as None has the same lenghth and return key list with valid and invalid(None) value.
+        Check if all the 6 base keys with value not as None has the same
+            length and return key list with valid and invalid(None) value.
         """
         tagdic=Dic_Extract_By_Subkeylist(self.data[tag],Pdata._data_base_keylist)
         #get valid key and value list
@@ -582,13 +601,19 @@ class Pdata(object):
 
     def _get_err_by_tag(self,tag):
         """
-        get xerr,yerr for tag; if both errl and errh is not None, the nx2 array returned; if errl!=None & errh==None,nx1 array returned; otherwise None returned.
+        Get xerr,yerr for tag; if both errl and errh is not None, the nx2
+            array returned; if errl!=None & errh==None,nx1 array returned;
+            otherwise None returned.
+
+        Notes:
+        ------
         We assume errl=None while errh!=None will not occur.
         """
         tag_data=self.data[tag]
         valid_key_list,invalid_key_list=self._data_complete_check_by_tag(tag)
-        #here we assume when equal low and high end of error is used, it's been assigned to x/yerrl with x/yerrh as None
-        #if you want to set error bar for only side, then set the other one explicitly to 0.
+        #here we assume when equal low and high end of error is used, it's
+        #been assigned to x/yerrl with x/yerrh as None. if you want to set 
+        #error bar for only side, then set the other one explicitly to 0.
         if 'xerrl' in invalid_key_list and 'xerrh' in invalid_key_list:
             xerr=None
         elif 'xerrl' in invalid_key_list and 'xerrh' not in invalid_key_list:
@@ -609,26 +634,97 @@ class Pdata(object):
 
         return xerr,yerr
 
+    @staticmethod
+    def _expand_by_keyword(taglist,list_tagkw_tagkwvalue_tuple):
+        """
+        Purpose: convert a list of [(tag_kw1,v1),(tag_kw2,v2)] tuples to a
+            list like [(tag1_kw1:v1),(tag2_kw1,v1),(tag3_kw2,v2),
+            (tag4_kw2,v2),...], where tag1_kw1,tag2_kw1 are tags containg
+            keyword tag_kw1, tag3_kw2,tag4_kw2 are tags containg keyword
+            tag_kw2,..
+        list_tag_tagvalue_tuple is like [('dry','r'),('wet','b')] where
+            'dry' and 'wet' are keywords used for classifying tags.
+
+        Examples:
+        ---------
+        >>> tags = ['wet1', 'wet2', 'wet3', 'dry1', 'dry3', 'dry2']
+        >>> Pdata._expand_by_keyword(tags,[('dry','r'),('wet','b')])
+        [('dry1', 'r'), ('dry3', 'r'), ('dry2', 'r'), ('wet1', 'b'),
+         ('wet2', 'b'), ('wet3', 'b')]
+        """
+        full_tagkw_list=[]
+        for tagkw,tagkwvalue in list_tagkw_tagkwvalue_tuple:
+            for tag in FilterStringList(tagkw,taglist):
+                full_tagkw_list.append((tag,tagkwvalue))
+        return full_tagkw_list
+
+
+    @staticmethod
+    def _expand_tag_value_to_dic(taglist,tag_attr_value,tagkw=False):
+        '''
+        Check notes for Pdata.add_attr_by_tag for more details.
+        '''
+        #This if/else build the final dic to be used.
+        if not isinstance(tag_attr_value,dict):
+            if isinstance(tag_attr_value,list):
+                #tag_attr_value is a list of (tag,attr_value) tuples.
+                if isinstance(tag_attr_value[0],tuple):
+                    #tag is keyword
+                    if tagkw==True:
+                        expand_tag_attr_value_list = \
+                            Pdata._expand_by_keyword(taglist,
+                                                     tag_attr_value)
+                        final_dic=dict(expand_tag_attr_value_list)
+                    else:
+                        final_dic=dict(tag_attr_value)
+                #a list of values
+                else:
+                    if len(tag_attr_value)!=len(taglist):
+                        raise ValueError('''taglist has len '{0}' but input
+                            list len is {1}'''.format(len(taglist),
+                            len(tag_attr_value)))
+                    else:
+                        final_dic=dict(zip(taglist,tag_attr_value))
+            #assume a single value (number or string)
+            else:
+                final_dic=dict(zip(taglist, len(taglist)*
+                               [tag_attr_value]))
+        #tag_attr_value is a dict
+        else:
+            final_dic=tag_attr_value
+        return final_dic
 
     def add_attr_by_tag(self,tagkw=False,**nested_attr_tag_value_dic):
         """
-        add extra base attribute or ploting attribute by using key/keyvalue pairs, keys can principally be any keys of self._taglist; but this method is suggested 
-        to be used to add attr_name in _extra_base_keylist or _plot_attr_keylist_all
-        Note the keyvalue is very flexible:
-            1. In case of a single value, it will be broadcast to all tags for the attr concerned.
-            2. In case of a list with lenght equal to number of tags, it will be add to tags randomly (since python dictionary keys has no sequence)
-            3. In case of a dictionary of tag/attr_value pairs, add attr_value accordingly to the tag corresponded.
-            4. In case of a list of (tag,value) tuples:
-                4.1 if tagkw==True (tagkw is only for this purpose):
-                    treat the tag in tag/attr_value as tag_keyword to set the same attr_value for all tags that contains this tag_keyword 
-                4.2 if tagkw==False:
-                    treat the tag in tag/attr_value as a full tag and will do the keyword search, it will change the tuple directly to a dictionary and apply
-                    the dictionary in seting tag/attr_value directly.
+        Add extra base attribute or ploting attribute by using key/keyvalue
+            pairs, keys can principally be any keys of self._taglist; but this
+            method is suggested to be used to add attr_name in
+            _extra_base_keylist or _plot_attr_keylist_all
 
+        Notes:
+        ------
+        Note the keyvalue is very flexible:
+        1. In case of a single value, it will be broadcast to all tags for the
+            attr concerned.
+        2. In case of a list with lenght equal to number of tags, it will be
+            add to tags by sequence of Pdata._taglist
+        3. In case of a dictionary of tag/attr_value pairs, add attr_value
+            accordingly to the tag corresponded.
+        4. In case of a list of (tag,value) tuples:
+            4.1 if tagkw==True (tagkw is only for this purpose):
+                treat the tag in tag/attr_value as tag_keyword to set the same
+                attr_value for all tags that contains this tag_keyword.
+            4.2 if tagkw==False:
+                treat the tag in tag/attr_value as a full tag and will not do
+                the keyword search, it will change the tuple directly to a
+                dictionary and apply the dictionary in seting tag/attr_value
+                directly.
 
         Available keys are:
         **extra base attribute:
-            bleftshift --> bar plot left shift, when bars are very close to each other with identical x values, some could be shift leftward to seperate them.(default 0)
+            bleftshift --> bar plot left shift, when bars are very close to
+                each other with identical x values, some could be shift
+                leftward to seperate them.(default 0)
             bwidth --> barplot width,(default: 0.5)
             bbottom --> barplot bottom (default:0)
             label
@@ -655,44 +751,10 @@ class Pdata(object):
         **plot plot:
         **bar:
             barcolor
-
-
         """
-        def _expand_by_keyword(list_tagkw_tagkwvalue_tuple):
-            """
-            Purpose: convert a list of [(tag_kw1,v1),(tag_kw2,v2)] tuples to a list like [(tag1_kw1:v1),(tag2_kw1,v1),(tag3_kw2,v2),(tag4_kw2,v2),...]
-                where tag1_kw1,tag2_kw1 are tags containg keyword tag_kw1, tag3_kw2,tag4_kw2 are tags containg keyword tag_kw2,..
-            list_tag_tagvalue_tuple is like [('dry','r'),('wet','b')] where 'dry' and 'wet' are keywords used for classifying tags.
-            """
-            tags=self._taglist
-            full_tagkw_list=[]
-            for tagkw,tagkwvalue in list_tagkw_tagkwvalue_tuple:
-                for tag in FilterStringList(tagkw,tags):
-                    full_tagkw_list.append((tag,tagkwvalue))
-            return full_tagkw_list
-
-        for attr_name,tag_attr_value_dic in nested_attr_tag_value_dic.items():
-            #This if/else build the final dic to be used.
-            if not isinstance(tag_attr_value_dic,dict):
-                if isinstance(tag_attr_value_dic,list):
-                    #tag_attr_value_dic is a list of (tag,attr_value) tuples.
-                    if isinstance(tag_attr_value_dic[0],tuple):
-                        if tagkw==True:
-                            expand_tag_attr_value_dic=_expand_by_keyword(tag_attr_value_dic)
-                            final_dic=dict(expand_tag_attr_value_dic)
-                        else:
-                            final_dic=dict(tag_attr_value_dic)
-                    #a list of only values
-                    else:
-                        if len(tag_attr_value_dic)!=len(self.data):
-                            raise ValueError('data has len {0} but input list len is {1}'.format(len(self.data),len(tag_attr_value_dic)))
-                        else:
-                            final_dic=dict(zip(self._taglist,tag_attr_value_dic))
-                #assume a single value (number or string)
-                else:
-                    final_dic=dict(zip(self._taglist, len(self._taglist)*[tag_attr_value_dic]))
-            else:
-                final_dic=tag_attr_value_dic
+        for attr_name,tag_attr_value in nested_attr_tag_value_dic.items():
+            final_dic = Pdata._expand_tag_value_to_dic(self._taglist,
+                                                     tag_attr_value, tagkw)
             #apply value to tag
             for tag,attr_value in final_dic.items():
                 if tag not in self.data:
@@ -711,7 +773,8 @@ class Pdata(object):
         elif tag_data['xerrl']!=None and tag_data['xerrh']==None:
             tag_data['xerrh']=tag_data['xerrl']
         elif tag_data['xerrl']==None and tag_data['xerrh']!=None:
-            raise ValueError("err low end is None but high end not for xerr in tag '{0}'".format(tag))
+            raise ValueError('''err low end is None but high end not for xerr
+                in tag '{0}' '''.format(tag))
         else:
             pass
         if tag_data['yerrl']==None and tag_data['yerrh']==None:
@@ -719,7 +782,8 @@ class Pdata(object):
         elif tag_data['yerrl']!=None and tag_data['yerrh']==None:
             tag_data['yerrh']=tag_data['yerrl']
         elif tag_data['yerrl']==None and tag_data['yerrh']!=None:
-            raise ValueError("err low end is None but high end not for yerr in tag '{0}'".format(tag))
+            raise ValueError('''err low end is None but high end not for yerr
+                in tag '{0}' '''.format(tag))
         else:
             pass
         return tag_data
@@ -727,8 +791,10 @@ class Pdata(object):
     @staticmethod
     def Hstack_Dic_By_Key(dict_list,key_list):
         """
-        Horizontal stack dic values from dict list for keys present in key_list. Return a dict.
-        Dictionaries in dict_list must have exactly the same keys with value as np.ndarray type
+        Horizontal stack dic values from dict list for keys present in
+            key_list. Return a dict.
+        Dictionaries in dict_list must have exactly the same keys with
+            value as np.ndarray type
         """
         outdic={}
         for key in key_list:
@@ -740,22 +806,30 @@ class Pdata(object):
 
     def Vstack_By_Tag(self,tagseq=None,axis='y'):
         """
-        Vertial stack the data into numpy array for the tags in tagseq, the 1st tag' data is on bottom output array.
+        Vertial stack the data into numpy array for the tags in tagseq, the
+            1st tag' data is on bottom output array.
 
         Notes:
         ------
         1. implicite case to call this function is tags have sharex data.
         """
         data_list = [self.data[tag][axis] for tag in tagseq]
-        return np.ma.vstack(data_list[::-1])  #we need to reverse the data_list as we want the first come-in to stay on the bottom
+        #we need to reverse the data_list as
+        #we want the first come-in to stay on the bottom
+        return np.ma.vstack(data_list[::-1])
 
     def pool_data_by_tag(self,tagkw=False,**group_dic):
         """
-        Purpose: pool the data together by specifying new_tag=[old_tag_list] pairs; when tagkw==True, it's allowed to use new_tag=old_tag_keyword to
-            specify what old tags will be pooled together which will include old_tag_keyword. Other attributes outside the _data_base_keylist will be 
-            copied from the first old_tag of the old_tag_list
+        Pool the data together by specifying new_tag=[old_tag_list] pairs;
+            when tagkw==True, it's allowed to use new_tag=old_tag_keyword to
+            specify what old tags will be pooled together which will
+            include old_tag_keyword. Other attributes outside the
+            _data_base_keylist will be copied from the first old_tag of
+            the old_tag_list.
         Example:
-            pool_data_by_tag(alldry=:['1stdry','2nddry','3rddry']), or pool_data_by_tag[tagkw=True,alldry='dry']
+            pool_data_by_tag(alldry=['1stdry','2nddry','3rddry'],
+                allwet=['wet1','wet2'])
+            pool_data_by_tag(tagkw=True,alldry='dry')
         """
         if tagkw==True:
             group_dic_final={}
@@ -764,34 +838,36 @@ class Pdata(object):
                 group_dic_final[newtag]=FilterStringList(newtag_tagkw,tags)
         else:
             group_dic_final=group_dic
+
         pdata=Pdata()
         for newtag in group_dic_final.keys():
             old_tag_list=group_dic_final[newtag]
-            old_entry_list=[self._fill_errNone_with_Nan(tag) for tag in old_tag_list]
-            new_entry=Pdata.Hstack_Dic_By_Key(old_entry_list,Pdata._data_base_keylist)
-            #for _extra_base_keylist attributes, their default value in _new_entry will be supplied to the new tag (pooled) data.
-            #all other ploting attributes in _plot_attr_dic.values(), they're lost.
+            old_entry_list=[self._fill_errNone_with_Nan(tag) for
+                                tag in old_tag_list]
+            new_entry=Pdata.Hstack_Dic_By_Key(old_entry_list,
+                                              Pdata._data_base_keylist)
+            #for _extra_base_keylist attributes, their default value in
+            #_new_entry will be supplied to the new tag (pooled) data.
+            #all other ploting attributes in _plot_attr_dic.values(),
+            #they're lost.
             first_old_tag=old_tag_list[0]
-            new_entry.update(Dic_Remove_By_Subkeylist(self.data[first_old_tag],Pdata._data_base_keylist))
+            new_entry.update(Dic_Remove_By_Subkeylist(self.data[first_old_tag],
+                                                      Pdata._data_base_keylist))
             pdata.add_entry_by_dic(**{newtag:new_entry})
         return pdata
 
     def regroup_data_by_tag(self,taglist):
         """
-        Subset data by "taglist" and return as a new Pdata instance. With all features for tag reserved.
+        Subset data by "taglist" and return as a new Pdata instance.
+        With all features for tag reserved.
         """
-        pdata=Pdata()
         targetdic=Dic_Extract_By_Subkeylist(self.data,taglist)
-        for tag,tag_data in targetdic.items():
-            pdata.add_entry_by_dic(**{tag:tag_data})
+        pdata=Pdata(targetdic)
         return pdata
 
     def regroup_data_by_tag_keyword(self,tag_keyword):
         tags=self._taglist
-        return self.regroup_data_by_tag(FilterStringList(tag_keyword,tags))
-
-
-
+        #return self.regroup_data_by_tag(FilterStringList(tag_keyword,tags))
 
     def leftshift(self,shift=0,taglist='all'):
         taglist=self._set_default_tag(taglist)
@@ -824,7 +900,7 @@ class Pdata(object):
         """
         axes=_replace_none_axes(axes)
         if erase==True:
-            if hasattr(self,'Scatter_PathC') and self.Scatter_PathC!={}:
+            if hasattr(self,'Scatter_PathC') and self.Scatter_PathC != {}:
                 self.remove_scatter_by_tag()
         self._data_complete_check_all()
         if Is_Nested_Dic(kwargs):
@@ -1155,6 +1231,7 @@ class Pdata(object):
             return artist[0].get_axes()
 
     def set_legend_scatter(self,axes=None,taglab=False,tag_seq=None,**kwargs):
+        tag_seq = _replace_none_by_given(tag_seq,self._taglist)
         handler_list,label_list=self._get_handler_label_by_artistdic(self.Scatter_PathC,taglab=taglab,tag_seq=tag_seq)
         if axes==None:
             axes=self._get_axes_by_artistdic(self.Scatter_PathC)
