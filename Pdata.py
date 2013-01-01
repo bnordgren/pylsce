@@ -230,17 +230,25 @@ class Pdata(object):
     _data_base_keylist=['x','y','xerrl','xerrh','yerrl','yerrh']
     _extra_base_keylist=['label','bwidth','bbottom','bleftshift']
     _extra_nonplot_keylist=['unit','ylab']
-    _all_nonplot_keylist = _extra_nonplot_keylist + _data_base_keylist + _extra_base_keylist
+    _all_nonplot_keylist = _extra_nonplot_keylist + _data_base_keylist +\
+                           _extra_base_keylist
     _extra_base_keylist_default=dict(zip(_extra_base_keylist,[None,0.5,0,0]))
-
     _new_entry=dict(x=None,y=None,xerrl=None,xerrh=None,yerrl=None,yerrh=None)
     _new_entry.update(_extra_base_keylist_default)
 
-    _scatter_attr_base_keylist=['ssize','scolor','smarker','scmap','snorm','svmin','svmax',]
-    _error_attr_base_keylist=['efmt','ecolor','elinewidth','capsize','barsabove','lolims','uplims','xlolims','xuplims']
+    _scatter_attr_base_keylist=['ssize','scolor','smarker','scmap',
+                                'snorm','svmin','svmax',]
+    _error_attr_base_keylist=['efmt','ecolor','elinewidth','capsize',
+                              'barsabove','lolims','uplims','xlolims',
+                              'xuplims']
     _bar_attr_base_keylist=['bcolor']
-    _plot_attr_dic=dict(scatter=_scatter_attr_base_keylist,errorbar=_error_attr_base_keylist,bar=_bar_attr_base_keylist)
-    _plot_attr_keylist_all = _scatter_attr_base_keylist + _error_attr_base_keylist + _bar_attr_base_keylist
+    _plot_attr_dic=dict(scatter=_scatter_attr_base_keylist,
+                        errorbar=_error_attr_base_keylist,
+                        bar=_bar_attr_base_keylist)
+
+    _plot_attr_keylist_all = _scatter_attr_base_keylist + \
+                             _error_attr_base_keylist + \
+                             _bar_attr_base_keylist
 
     #initiate default plot attritubtes
     _error_attr_default={             \
@@ -273,12 +281,7 @@ class Pdata(object):
     _plot_attr_default.update(_scatter_attr_default)
     _plot_attr_default.update(_bar_attr_default)
 
-
-    #not used
-    def _get_plot_attr_list_except(self,plottype):
-        return StringListAnotB(Pdata._plot_attr_keylist_all, Pdata._plot_attr_dic[plottype])
-
-    #tested
+    #TESTED
     def _plot_attr_keylist_check(self):
         inlist = Pdata._plot_attr_keylist_all
         if any(inlist.count(x) > 1 for x in inlist):
@@ -286,9 +289,14 @@ class Pdata(object):
 
 
 
-    def __init__(self,newdata={}):
+    def __init__(self,newdata=None):
         self._plot_attr_keylist_check()
-        self.data=newdata.copy()
+
+        if newdata == None:
+            self.data = {}
+        else:
+            self.data = newdata.copy()
+
         if self.data == {}:
             self._taglist = []
         else:
@@ -340,6 +348,7 @@ class Pdata(object):
             for attr_name,attr_value in tag_value.items():
                 self.data[tag][attr_name] = attr_value
 
+    #TESTED
     def add_entry_noerror(self,x=None,y=None,tag=None):
         self.add_tag(tag)
         if x == None:
@@ -383,6 +392,7 @@ class Pdata(object):
             (or pandas DataFrame) with tag:ydata pairs. the length of x must
             be equal to all that of ydic[tag]
         """
+        #convert pandas dataframe to dict
         if isinstance(ydic,pa.DataFrame):
             newydic={}
             for key in ydic.columns:
@@ -470,6 +480,7 @@ class Pdata(object):
         return self.data[tag].keys()
 
 
+    #TESTED
     def set_tag_order(self,tagseq=None):
         """
         Set tag order and this order will be kept throughout all the class
@@ -574,7 +585,8 @@ class Pdata(object):
         Check if all the 6 base keys with value not as None has the same
             length and return key list with valid and invalid(None) value.
         """
-        tagdic=Dic_Extract_By_Subkeylist(self.data[tag],Pdata._data_base_keylist)
+        tagdic=Dic_Extract_By_Subkeylist(self.data[tag],
+                                         Pdata._data_base_keylist)
         #get valid key and value list
         valid_key_list=[]
         valid_value_list=[]
@@ -617,7 +629,10 @@ class Pdata(object):
         if 'xerrl' in invalid_key_list and 'xerrh' in invalid_key_list:
             xerr=None
         elif 'xerrl' in invalid_key_list and 'xerrh' not in invalid_key_list:
-            raise ValueError("strange that 'xerrl' is None but 'xerrh' not for tag '{0}', set one side as zero if you want single-side errorbar".format(tag))
+            raise ValueError('''strange that 'xerrl' is None but 'xerrh' not
+                for tag '{0}', set one side as zero if you want
+                single-side errorbar'''.format(tag))
+
         elif 'xerrl' not in invalid_key_list and 'xerrh' in invalid_key_list:
             xerr=tag_data['xerrl']
         else:
@@ -626,7 +641,9 @@ class Pdata(object):
         if 'yerrl' in invalid_key_list and 'yerrh' in invalid_key_list:
             yerr=None
         elif 'yerrl' in invalid_key_list and 'yerrh' not in invalid_key_list:
-            raise ValueError("strange that 'yerrl' is None but 'yerrh' not for tag '{0}', set one side as zero if you want single-side errorbar".format(tag))
+            raise ValueError('''strange that 'yerrl' is None but 'yerrh' not
+                for tag '{0}', set one side as zero if you want
+                single-side errorbar'''.format(tag))
         elif 'yerrl' not in invalid_key_list and 'yerrh' in invalid_key_list:
             yerr=tag_data['yerrl']
         else:
@@ -635,6 +652,7 @@ class Pdata(object):
         return xerr,yerr
 
     @staticmethod
+    #TESTED
     def _expand_by_keyword(taglist,list_tagkw_tagkwvalue_tuple):
         """
         Purpose: convert a list of [(tag_kw1,v1),(tag_kw2,v2)] tuples to a
@@ -659,10 +677,16 @@ class Pdata(object):
         return full_tagkw_list
 
 
+    #TESTED
     @staticmethod
     def _expand_tag_value_to_dic(taglist,tag_attr_value,tagkw=False):
         '''
         Check notes for Pdata.add_attr_by_tag for more details.
+
+        Notes:
+        ------
+        1. If tag_attr_value is a dict, the taglist will not be used at all.
+            the tag_attr_value will be returned without any change.
         '''
         #This if/else build the final dic to be used.
         if not isinstance(tag_attr_value,dict):
@@ -675,8 +699,11 @@ class Pdata(object):
                             Pdata._expand_by_keyword(taglist,
                                                      tag_attr_value)
                         final_dic=dict(expand_tag_attr_value_list)
-                    else:
+                    elif tagkw == False:
                         final_dic=dict(tag_attr_value)
+                    else:
+                        raise TypeError('''tagkw must be True or False
+                            when tag_attr_value is a list''')
                 #a list of values
                 else:
                     if len(tag_attr_value)!=len(taglist):
@@ -687,13 +714,24 @@ class Pdata(object):
                         final_dic=dict(zip(taglist,tag_attr_value))
             #assume a single value (number or string)
             else:
-                final_dic=dict(zip(taglist, len(taglist)*
-                               [tag_attr_value]))
+                #use tagkw as string to broadcast vlaue to few tags
+                if isinstance(tagkw,str):
+                    taglist_bykeywd = FilterStringList(tagkw,taglist)
+                    final_dic=dict(zip(taglist_bykeywd, len(taglist_bykeywd)*
+                                   [tag_attr_value]))
+                #broadcast value to all tags
+                elif tagkw == False:
+                    final_dic=dict(zip(taglist, len(taglist)*
+                                   [tag_attr_value]))
+                else:
+                    raise TypeError('''tagkw must be string when a single
+                        value to be broadcase to all the tags''')
         #tag_attr_value is a dict
         else:
             final_dic=tag_attr_value
         return final_dic
 
+    #TESTED
     def add_attr_by_tag(self,tagkw=False,**nested_attr_tag_value_dic):
         """
         Add extra base attribute or ploting attribute by using key/keyvalue
@@ -818,6 +856,7 @@ class Pdata(object):
         #we want the first come-in to stay on the bottom
         return np.ma.vstack(data_list[::-1])
 
+    #TESTED
     def pool_data_by_tag(self,tagkw=False,**group_dic):
         """
         Pool the data together by specifying new_tag=[old_tag_list] pairs;
@@ -867,7 +906,6 @@ class Pdata(object):
 
     def regroup_data_by_tag_keyword(self,tag_keyword):
         tags=self._taglist
-        #return self.regroup_data_by_tag(FilterStringList(tag_keyword,tags))
 
     def leftshift(self,shift=0,taglist='all'):
         taglist=self._set_default_tag(taglist)
@@ -887,49 +925,41 @@ class Pdata(object):
                  }
         attr_dic.update(Dic_Extract_By_Subkeylist(kwargs,Pdata._scatter_attr_base_keylist))
         remain_kwargs=Dic_Remove_By_Subkeylist(kwargs,Pdata._plot_attr_keylist_all)
-        print 'attr_dic kwargs passed to axes.scatter()',attr_dic
-        print 'scatter kwargs passed to axes.scatter()',remain_kwargs
-        return axes.scatter(x, y,s=attr_dic['ssize'], c=attr_dic['scolor'], marker=attr_dic['smarker'], cmap=attr_dic['scmap'], \
-                   norm=attr_dic['snorm'], vmin=attr_dic['svmin'], vmax=attr_dic['svmax'], alpha=None, linewidths=None, faceted=True, verts=None, **remain_kwargs)
+        #print 'attr_dic kwargs passed to axes.scatter()',attr_dic
+        #print 'scatter kwargs passed to axes.scatter()',remain_kwargs
+        return axes.scatter(x, y,s=attr_dic['ssize'], c=attr_dic['scolor'],
+                            marker=attr_dic['smarker'], cmap=attr_dic['scmap'],
+                            norm=attr_dic['snorm'], vmin=attr_dic['svmin'],
+                            vmax=attr_dic['svmax'], alpha=None,
+                            linewidths=None, faceted=True,
+                            verts=None, **remain_kwargs)
 
     def scatter(self,axes=None,erase=True,**kwargs):
         """
         Make a scatter plot.
-        Arugments:
-            erase : set erase as True is a scatter plot has already been made for this pd object and you want to make a new scatter plot and "erase" the existing one
+        Parameters:
+        -----------
+        erase : set erase as True if a scatter plot has already been made
+            for this pd object and you want to make a new scatter plot
+            and "erase" the existing one
         """
         axes=_replace_none_axes(axes)
         if erase==True:
             if hasattr(self,'Scatter_PathC') and self.Scatter_PathC != {}:
                 self.remove_scatter_by_tag()
+
         self._data_complete_check_all()
         if Is_Nested_Dic(kwargs):
-            raise ValueError('tag specific plot attributes should be set by using add_attr_by_tag')
+            raise ValueError('''tag specific plot attributes should be set
+                              by using add_attr_by_tag''')
         else:
             self.Scatter_PathC={}  #Scatter_PathC ---> Scatter PathCollection
             for tag,tag_data in self.data.items():
                 tag_kwargs=kwargs.copy()
                 tag_plot_attr_dic=Dic_Remove_By_Subkeylist(tag_data,Pdata._all_nonplot_keylist)
                 tag_kwargs.update(tag_plot_attr_dic)
-                print 'tag & tag_kwargs',tag,tag_kwargs
+                #print 'tag & tag_kwargs',tag,tag_kwargs
                 self.Scatter_PathC[tag]=self._gscatter(axes,tag_data['x'],tag_data['y'],**tag_kwargs)
-        return self.Scatter_PathC
-
-    def scattertag(self,axes,taglist='all',**kwargs):
-        taglist = self._set_default_tag(taglist)
-        if hasattr(self,'Scatter_PathC') and self.Scatter_PathC!={}:
-            self.remove_scatter_by_tag(taglist)
-        self._data_complete_check_all()
-        if Is_Nested_Dic(kwargs):
-            raise ValueError('tag specific plot attributes should be set by using add_attr_by_tag')
-        else:
-            self.Scatter_PathC={}  #Scatter_PathC ---> Scatter PathCollection
-            for tag,tag_data in Dic_Extract_By_Subkeylist(self.data,taglist).items():
-                tag_kwargs=kwargs.copy()
-                tag_plot_attr_dic=Dic_Remove_By_Subkeylist(tag_data,Pdata._all_nonplot_keylist)
-                tag_kwargs.update(tag_plot_attr_dic)
-                print 'tag & tag_kwargs',tag,tag_kwargs
-                self.Scatter_PathC[tag]=self._gscatter(axes,tag_data['x'],tag_data['y'],label=tag_data['label'],**tag_kwargs)
         return self.Scatter_PathC
 
     def plot(self,axes=None,**kwargs):
@@ -942,28 +972,38 @@ class Pdata(object):
             self.Line2D[tag]=line2D[0]
         return self.Line2D
 
-    def plot_stackline(self,axes=None,tagseq=None,colors=None,bottom_fill=True,legend=True,legdic={},fillkw={}):
+    def plot_stackline(self,axes=None,tagseq=None,colors=None,
+                       bottom_fill=True,legend=True,legdic={},fillkw={}):
         """
         Make stacked line plot for sharex pdata.
 
         Parameters:
         -----------
-        tagseq: the tag list for which stacked line plot will be made. Notice the sequece for tagseq is from bottom to the top.
-        colors: color list, the length should be equal to the number of filled area. In case of bottom_fill == True, len(colors) should be equal to len(tagseq),
-            otherwise should be equal to len(tagseq)-1.
-        bottom_fill: set True if the area between xaxis and the bottom line (the first tag) is to be filled.
-        legdic: the legend is set by using g.ProxyLegend(), legdic could be passed as kwargs for the function of g.ProxyLegend.create_legend
+        tagseq: the tag list for which stacked line plot will be made.
+            Notice the sequece for tagseq is from bottom to the top.
+        colors: color list, the length should be equal to the number of
+            filled area. In case of bottom_fill == True, len(colors) should
+            be equal to len(tagseq), otherwise should be equal to
+            len(tagseq)-1.
+        bottom_fill: set True if the area between xaxis and the bottom
+            line (the first tag) is to be filled.
+        legdic: the legend is set by using g.ProxyLegend(), legdic could
+            be passed as kwargs for the function of
+            g.ProxyLegend.create_legend
         kwargs: used for plt.fill_between functions.
 
         Returns:
         --------
         pdata,proleg
         pdata: the new pdata that stores the cumsum 'y' data.
-        proleg: the g.ProxyLegend object that's used to creat legend for the stacked plots.
+        proleg: the g.ProxyLegend object that's used to creat legend for
+            the stacked plots.
 
         Notes:
         ------
-        1. the **kwargs is also passed directly as kwargs for the function mat.patches.Rectangle and this may lead to conflicts in some special cases.
+        1. the **kwargs is also passed directly as kwargs for the
+            function mat.patches.Rectangle and this may lead to
+            conflicts in some special cases.
 
         See also:
         ---------
@@ -972,7 +1012,8 @@ class Pdata(object):
         #build the new pdata that stores the cumsum data
         tagseq = _replace_none_by_given(tagseq,self._taglist)
         arr = self.Vstack_By_Tag(tagseq)
-        arr_cumsum = arr[::-1].cumsum(axis=0)[::-1]  #we want the cumsum with direction from bottom-->top.
+        #we want the cumsum with direction from bottom-->top.
+        arr_cumsum = arr[::-1].cumsum(axis=0)[::-1]
         pdnew = self.copy()
         for index,tag in enumerate(tagseq):
             pdnew.data[tag]['y'] = arr_cumsum[::-1][index]
@@ -990,7 +1031,10 @@ class Pdata(object):
         if bottom_fill == True:
             bottom_tag = tagseq[0]
             bottom_data = pdnew.data[bottom_tag]
-            axes.fill_between(bottom_data['x'],np.zeros(len(bottom_data['x'])),bottom_data['y'],color=colors[0],**fillkw)
+            axes.fill_between(bottom_data['x'],
+                              np.zeros(len(bottom_data['x'])),
+                              bottom_data['y'],color=colors[0],**fillkw)
+
             proleg.add_rec_by_tag(bottom_tag,color=colors[0],**fillkw)
             colors_remain = colors[1:]
         else:
@@ -1001,8 +1045,12 @@ class Pdata(object):
             focus_tag = tagseq[index+1]
             below_data = pdnew.data[below_tag]
             focus_data = pdnew.data[focus_tag]
-            axes.fill_between(focus_data['x'],below_data['y'],focus_data['y'],color=colors_remain[index],**fillkw)
-            proleg.add_rec_by_tag(focus_tag,color=colors_remain[index],**fillkw)
+            axes.fill_between(focus_data['x'],below_data['y'],
+                              focus_data['y'],color=colors_remain[index],
+                              **fillkw)
+
+            proleg.add_rec_by_tag(focus_tag,
+                                  color=colors_remain[index],**fillkw)
             if index == len(tagseq)-2:
                 axes.set_xlim(focus_data['x'][0],focus_data['x'][-1])
 
@@ -1028,11 +1076,19 @@ class Pdata(object):
                  }
         attr_dic.update(Dic_Extract_By_Subkeylist(kwargs,Pdata._error_attr_base_keylist))
         remain_kwargs=Dic_Remove_By_Subkeylist(kwargs,Pdata._plot_attr_keylist_all)
-        print 'attr_dic in passed to errorbar()',attr_dic
-        print 'kwargs passed to errorbar()',remain_kwargs
-        return axes.errorbar(x, y, yerr=yerr, xerr=xerr, fmt=attr_dic['efmt'], ecolor=attr_dic['ecolor'], elinewidth=attr_dic['elinewidth'], \
-                             capsize=attr_dic['capsize'], barsabove=attr_dic['barsabove'], lolims=attr_dic['lolims'], uplims=attr_dic['uplims'], \
-                             xlolims=attr_dic['xlolims'], xuplims=attr_dic['xuplims'], **remain_kwargs)
+        #print 'attr_dic in passed to errorbar()',attr_dic
+        #print 'kwargs passed to errorbar()',remain_kwargs
+        return axes.errorbar(x, y, yerr=yerr, xerr=xerr, fmt=attr_dic['efmt'],
+                             ecolor=attr_dic['ecolor'],
+                             elinewidth=attr_dic['elinewidth'],
+                             capsize=attr_dic['capsize'],
+                             barsabove=attr_dic['barsabove'],
+                             lolims=attr_dic['lolims'],
+                             uplims=attr_dic['uplims'],
+                             xlolims=attr_dic['xlolims'],
+                             xuplims=attr_dic['xuplims'], **remain_kwargs)
+
+
 
     def _set_ecolor_by_scatter(self):
         taglist=[]
@@ -1041,9 +1097,14 @@ class Pdata(object):
             if tag in self.Scatter_PathC:
                 taglist.append(tag)
                 try:
-                    colorlist.append(self.Scatter_PathC[tag].get_facecolor()[0])
+                    fc = self.Scatter_PathC[tag].get_facecolor()[0]
+                    #if facecolor is white, we want to use edgecolor
+                    if np.allclose(fc,np.ones(4)):
+                        colorlist.append(self.Scatter_PathC[tag].get_edgecolor()[0])
+                    else:
+                        colorlist.append(fc)
                 except IndexError:
-                    print "the scatter facecolor for tag '{0}' is none, scatter edgecolor is used as errorbar color.".format(tag)
+                    #print "the scatter facecolor for tag '{0}' is none, scatter edgecolor is used as errorbar color.".format(tag)
                     colorlist.append(self.Scatter_PathC[tag].get_edgecolor()[0])
         self.add_attr_by_tag(ecolor=dict(zip(taglist,colorlist)))
         return dict(zip(taglist,colorlist))
@@ -1057,38 +1118,75 @@ class Pdata(object):
                 try:
                     colorlist.append(self.Bar_Container[tag][0].get_facecolor())
                 except IndexError:
-                    print "the bar facecolor for tag '{0}' is none, bar edgecolor is used as errorbar color.".format(tag)
+                    #print "the bar facecolor for tag '{0}' is none, bar edgecolor is used as errorbar color.".format(tag)
                     colorlist.append(self.Bar_Container[tag][0].get_edgecolor())
         self.add_attr_by_tag(ecolor=dict(zip(taglist,colorlist)))
+
+
 
     @staticmethod
     def _get_attr_value_from_handle(handle,attr_name):
         """
         Return an attribute from the specified handle.
         Example:
-            _get_attr_from_handle(matplotlib.collections.PathCollection,'_facecolors') is the same as matplotlib.collections.PathCollection.get_facecolor()
+            _get_attr_from_handle(matplotlib.collections.PathCollection,
+                                  '_facecolors')
+            is the same as
+            matplotlib.collections.PathCollection.get_facecolor()
         """
         return handle.__getattribute__(attr_name)
 
+    #TESTED
     @staticmethod
-    def _get_single_attr_by_check_similar_attrname_and_condition(handle, func_attr_condition_tuple_list):
+    def _get_attr_sequential_check(handle,func_attr_condition_tuple_list):
         """
-        Purpose: Return a single attribute by checking sequentially the attribute name list and if the condition has been made.
-        FirstCase: We want to make the program as intelligent as possible, if we want to set the errorbar color according to the facecolor or edgecolor of the scatters.
-            Sometimes the facecolor of a scatter could be None, then we want to use the edgecolor as the errorbar color. In this case, we need to set some priority: if 
-            the facecolor is not None, then the facecolor will be returned; otherwise the edgecolor will be returned.
-        Arguments:
-            1.  attr_condition_tuple_list is a list of 3-length tuple (func, attr_name, discard_condition_value). For the tuple, the first element of is a function, the second element is the attribute name, and and the third element is used to check if the attribute value should be discard. Sometimes the attributed value could be checked directly as equal to equal to the given (third) value or not (in this case the first element will be give as None), sometimes it's not possible to check this directly, so we need to use a function (first tuple element) to check if the condtion to discard the attribute value is met. If the condition is met (either through a function) or by equal relation operation directly, the
-                attribute value will be discard.
-            2   If all given conditions for all the attribute names are met, then an error will be raised.
+        Purpose: Return a single attribute by checking sequentially the
+            attribute name list and if the condition has been made. if
+            the condition has been made, then the returned attribute
+            value will be discarded, otherwise it will be used and the
+            following check will not be done.
+
+        FirstCase: We want to make the program as intelligent as possible,
+            if we want to set the errorbar color according to the facecolor
+            or edgecolor of the scatters. Sometimes the facecolor of a
+            scatter could be None, then we want to use the edgecolor as
+            the errorbar color. In this case, we need to set some priority:
+            if the facecolor is not None, then the facecolor will be
+            returned; otherwise the edgecolor will be returned.
+        Parameters:
+        -----------
+        attr_condition_tuple_list:
+            a list of 3-length tuple
+            (func, attr_name, discard_condition_value). For the tuple, the
+            first element of is a function, the second element is the
+            attribute name, and and the third element is used to check if
+            the attribute value should be discard. Sometimes the attributed
+            value could be checked directly as equal or not to the
+            given (third) value (in this case the first element
+            will be give as None), sometimes it's not possible to check
+            this directly, so we need to use a function (first tuple element)
+            to check if the condtion to discard the attribute value is met.
+            If the condition is met (either through a function) or by equal
+            relation operation directly, the attribute value will be discard.
+            If all given conditions for all the attribute names are met,
+            then an error will be raised.
         Example:
-            _get_single_attr_by_check_similar_attrname_and_condition(matplotlib.collections.PathCollection, [(__builtin__.len,'_facecolors',0),(__builtin__.len,'_edgecolors',0)]). This means if both facecolor and edgecolor is np.array([]), then an error will be raised. But if facecolor is not np.array([]), then the color of the facecolor will be used (This valid attribute value that stays earlier has higher priority in determining the final return value).
+            _get_attr_sequential_check(
+                matplotlib.collections.PathCollection,
+                [(__builtin__.len,'_facecolors',0),
+                 (__builtin__.len,'_edgecolors',0)]).
+                This means if both facecolor and edgecolor is np.array([]),
+                then an error will be raised. But if facecolor is not
+                np.array([]), then the color of the facecolor will be
+                used (This valid attribute value that stays earlier has
+                higher priority in determining the final return value).
         Doctest:
             >>> fig, ax = g.Create_1Axes()
             >>> a = np.arange(10)
-            >>> ax.scatter(a,a,facecolor=np.array([ 0.,  0.,  1.,  1.]),edgecolor=np.array([ 1.,  0.,  0.,  1.]))
-            >>> _get_single_attr_by_check_similar_attrname_and_condition(col,[(__builtin__.len,'_facecolors',0),(__builtin__.len,'_edgecolors',0)])[0] == np.array([ 0.,  0.,  1.,  1.])
-            >>> _get_single_attr_by_check_similar_attrname_and_condition(col,[(__builtin__.len,'_edgecolors',0),(__builtin__.len,'_facecolors',0)]) == np.array([ 1.,  0.,  0.,  1.])
+            >>> col = ax.scatter(a,a,facecolor=np.array([ 0.,  0.,  1.,  1.]),
+                edgecolor=np.array([ 1.,  0.,  0.,  1.]))
+            >>> _get_attr_sequential_check(col,[(__builtin__.len,'_facecolors',0),(__builtin__.len,'_edgecolors',0)])[0] == np.array([ 0.,  0.,  1.,  1.])
+            >>> _get_attr_sequential_check(col,[(__builtin__.len,'_edgecolors',0),(__builtin__.len,'_facecolors',0)]) == np.array([ 1.,  0.,  0.,  1.])
         """
         error_state = True
         for (func, attr_name, discard_condition_value) in func_attr_condition_tuple_list:
@@ -1114,6 +1212,7 @@ class Pdata(object):
         if error_state:
             raise ValueError("not valid attribute value found for the list of attributes: {0}".format(zip(*attr_condition_tuple_list)[0]))
 
+    #Note the previous errorbar is not removed before the new one is drawn
     def errorbar(self,axes,ef='scatter',**kwargs):
         """
         ef is short for 'ecolor follow', ef could be 'scatter','bar', if None, ecolor in self.data[tag]['ecolor'] is used, or it not present in self.data,
@@ -1201,16 +1300,22 @@ class Pdata(object):
         return outdic
 
 
-    def _get_handler_label_by_artistdic(self,artist_dic,taglab=False,tag_seq=None):
+    def _get_handler_label_by_artistdic(self,artist_dic,taglab=False,
+                                        tag_seq=None):
         """
-        Retrieve handler and label list from self.ScatterP/Line2D/BarContainer... for legend seting.
-        When tag_seq is a list of tags, will return handler/label list as sorted by tags in tag_seq, note using tag_seq will restrict the scope of tags included in 
-        legend.
+        Retrieve handler and label list from self.ScatterP/Line2D/
+            Bar_Container for legend seting. When tag_seq is a list of tags,
+            will return handler/label list as sorted by tags in
+            tag_seq, note using tag_seq will restrict the scope of
+            tags included in legend.
         """
         handler_list=[]
         label_list=[]
         if tag_seq==None:
-            tag_seq=artist_dic.keys()
+            if sorted(self._taglist) == sorted(artist_dic.keys()):
+                tag_seq = self._taglist[:]
+            else:
+                tag_seq=artist_dic.keys()
         for tag in tag_seq:
             artist=artist_dic[tag]
             handler_list.append(artist)
@@ -1261,20 +1366,25 @@ class Pdata(object):
         handler_list=[]
         label_list=[]
         attr_list=['Scatter_PathC','Line2D','Bar_Container']
-        artdic_list=[self.__getattribute__(attr) for attr in attr_list if hasattr(self,attr)]
+        artdic_list=[self.__getattribute__(attr) for attr in attr_list
+                     if hasattr(self,attr)]
         for artdic in artdic_list:
             try:
-                sub_hand_list,sub_lab_list=self._get_handler_label_by_artistdic(artdic,taglab=taglab,tag_seq=tag_seq)
+                sub_hand_list,sub_lab_list=\
+                    self._get_handler_label_by_artistdic(artdic,
+                        taglab=taglab,tag_seq=tag_seq)
                 handler_list.append(sub_hand_list)
                 label_list.append(sub_lab_list)
             except AttributeError:
                 pass
         if axes==None:
             axes=handler_list[0][0].get_axes()
-        self.LegendAll=axes.legend(iteflat(handler_list),iteflat(label_list),**kwargs)
+        self.LegendAll=axes.legend(iteflat(handler_list),
+                                   iteflat(label_list),**kwargs)
 
     def set_legend_select(self,axes=None,taglab=False,tag_seq=None,**kwargs):
         pass
+
     def _remove_artist_by_tag(self,artist_dic,taglist='all'):
         #this method from http://stackoverflow.com/questions/4981815/how-to-remove-lines-in-a-matplotlib-plot
         if taglist=='all':
@@ -1295,9 +1405,12 @@ class Pdata(object):
 
     def setp_by_tag(self,artist_dic,**nested_attr_tag_value_dic):
         """
-        Set artist property by attr_name=single value, or attr_name={tag:attr_value} pairs. In case of single value provided, it's broadcast to apply on all artists.
-        In case of a {tag:attr_value} dictionary, attr_value applied according to its tat key.  Note the {tag:attr_value}.keys() must be exactly the same as 
-        in artist_dic.keys(). 
+        Set artist property by attr_name=single value, or
+            attr_name={tag:attr_value} pairs. In case of single value provided,
+            it's broadcast to apply on all artists. In case of a
+            {tag:attr_value} dictionary, attr_value applied according to
+            its tat key.  Note the {tag:attr_value}.keys() must be exactly
+            the same as in artist_dic.keys().
         """
         for attr_name,tag_attr_value_dic in nested_attr_tag_value_dic.items():
             if not isinstance(tag_attr_value_dic,dict):
@@ -1307,17 +1420,51 @@ class Pdata(object):
                 for tag,attr_value in tag_attr_value_dic.items():
                     plt.setp(artist_dic[tag],**{attr_name:attr_value})
 
-    def creat_list_of_axes_by_tagseq(self,force_axs=None,tagseq=None,ncols=1,sharex=True,**subplot_kwargs):
+
+    def _setp_by_tag(self,artist_dic,tagkw=False,**nested_attr_tag_value_dic):
+        #retrieve the taglist that's used by the expand function.
+        if sorted(artist_dic.keys()) == sorted(self._taglist):
+            taglist = self._taglist[:]
+        else:
+            taglist = artist_dic.keys()
+
+        for attr_name,tag_attr_value in nested_attr_tag_value_dic.items():
+            final_dic = Pdata._expand_tag_value_to_dic(taglist,
+                                                     tag_attr_value, tagkw)
+            for tag,attr_value in final_dic.items():
+                plt.setp(artist_dic[tag],**{attr_name:attr_value})
+
+    def setp_tag(self,plottype,tagkw=False,**nested_attr_tag_value_dic):
+        if plottype == 'line':
+            artist_dic = self.Line2D
+        elif plottype == 'sca' or 'scatter':
+            artist_dic = self.Scatter_PathC
+        elif plottype == 'bar':
+            artist_dic = self.Bar_Container
+        else:
+            raise ValueError('''plottype not present! please add new one''')
+
+        self._setp_by_tag(artist_dic,tagkw=tagkw,**nested_attr_tag_value_dic)
+
+    def creat_list_of_axes_by_tagseq(self,force_axs=None,tagseq=None,
+                                     ncols=1,sharex=True,**subplot_kwargs):
         """
         """
         tag_list=_replace_none_by_given(tagseq,self._taglist)
         num=len(tag_list)
-        axs = _build_list_of_axes_by_num(num,force_axs=force_axs,ncols=ncols,sharex=sharex,**subplot_kwargs)
+        axs = _build_list_of_axes_by_num(num,force_axs=force_axs,ncols=ncols,
+                                         sharex=sharex,**subplot_kwargs)
         return dict(zip(tag_list,axs))
 
-    def plot_split_axes(self,force_axs=None,force_taglist=None,force_axdic=None,ncols=1,sharex=True,tagpos='ul',unit=None,xlim=None,plotkw={},**subplot_kwargs):
+    def plot_split_axes(self,force_axs=None,force_taglist=None,
+                        force_axdic=None,ncols=1,sharex=True,
+                        tagpos='ul',unit=None,xlim=None,
+                        plotkw={},**subplot_kwargs):
+
         if force_axdic == None:
-            axdic = self.creat_list_of_axes_by_tagseq(force_axs=force_axs,tagseq=force_taglist,ncols=ncols,sharex=sharex,**subplot_kwargs)
+            axdic = self.creat_list_of_axes_by_tagseq(force_axs=force_axs,
+                            tagseq=force_taglist,ncols=ncols,
+                            sharex=sharex,**subplot_kwargs)
         else:
             axdic = force_axdic
 
@@ -1337,6 +1484,7 @@ class Pdata(object):
         Arguments:
             force_taglist: could be used to plot for only selected tags, or to force the sequence of tags.
         """
+        print "Warning! This is deprecated! use plot_split_axes instead."
         if force_taglist == None:
             tag_list=self._taglist
         else:
