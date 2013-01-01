@@ -30,6 +30,7 @@ def gsetp(*artist,**kwargs):
         2.  when artist is a tuple or list,kwargs[key] can also be set as tuple or list, but when kwargs[key] is only one value, it will be broadcast 
             to the same length with artist automatically.
     """
+    print "Deprecating Warning!"
     if len(artist)==1 and isinstance(artist,(tuple,list)):
         artist_list=pb.iteflat(artist[0])
     else:
@@ -52,6 +53,7 @@ def gsetp(*artist,**kwargs):
         print key,value_list,'has been set'
     return artist_list,[key]*len(artist_list),value_list
 
+#choose default colorlist
 def _replace_none_colorlist(colors=None,num=None):
     if colors == None:
         if num <= len(g.pcolor):
@@ -220,6 +222,77 @@ def _get_attr_value_from_objins_dic(objins_dic,*attr_list):
             attr_dic[attr_name][tag]=objins.__getattribute__(attr_name)
     return attr_dic
 
+
+def _build_list_of_axes_by_num(num,force_axs=None,ncols=None,
+                               sharex=True, sharey=False,
+                               column_major=False, **kwargs):
+    if force_axs==None:
+        if ncols == 1:
+            fig,axs=plt.subplots(nrows=num, ncols=1, **kwargs)
+        else:
+            if num%ncols == 0:
+                nrows=num/ncols
+            else:
+                nrows=num/ncols+1
+            fig,axt=plt.subplots(nrows=nrows, ncols=ncols,
+                                 sharex=sharex, sharey=sharey,
+                                 **kwargs)
+            if column_major == False:
+                axs=axt.flatten()[0:num]
+            else:
+                axs = axt.flatten(order='F')[0:num]
+    else:
+        if num<=len(force_axs):
+            axs=force_axs[0:num]
+        else:
+            raise ValueError("given force_axs length is smaller than required.")
+    return axs
+
+def _creat_dict_of_tagaxes_by_tagseq(force_axs=None,tagseq=None,
+                                 default_tagseq=None,
+                                 ncols=1, column_major=False,
+                                 sharex=True,sharey=False,
+                                 force_axdic=None,
+                                 **subplot_kwargs):
+    """
+    Return a dictionary of tag/axes.
+
+    Parameters:
+    -----------
+    force_axs: force axes, the length could be bigger than tagseq
+    default_tagseq: tagseq that's used as default.
+
+    """
+    tag_list=_replace_none_by_given(tagseq, default_tagseq)
+    num=len(tag_list)
+    axs = _build_list_of_axes_by_num(num,force_axs=force_axs,ncols=ncols,
+                                     sharex=sharex, sharey=sharey,
+                                     column_major=column_major,
+                                     **subplot_kwargs)
+    if force_axdic != None:
+        return force_axdic
+    else:
+        return dict(zip(tag_list,axs))
+
+def _treat_axes_dict(axdic,tagpos='ul',unit=None,xlim=None):
+    """
+    Label tag and unit for a dictionary of axes with tag as keys.
+    """
+    for tag,axt in axdic.items():
+        g.Set_AxText(axt,tag,tagpos)
+        if unit !=None :
+            if isinstance(unit,str):
+                print "forced unit is used"
+                axt.set_ylabel(unit)
+            else:
+                raise ValueError("Strange unit")
+        else:
+            pass
+
+        if xlim != None:
+            axt.set_xlim(xlim)
+
+
 class Pdata(object):
     """
     There are two ways to set customized keyword, it can be done using add_attr_by_tag function or passed when calling ploting function. 
@@ -295,7 +368,7 @@ class Pdata(object):
         if newdata == None:
             self.data = {}
         else:
-            self.data = newdata.copy()
+            self.data = copy.deepcopy(newdata)
 
         if self.data == {}:
             self._taglist = []
@@ -487,7 +560,7 @@ class Pdata(object):
         method when default taglist is used.
         """
         if sorted(self._taglist) == sorted(tagseq):
-            self._taglist = tagseq
+            self._taglist = tagseq[:]
         else:
             raise ValueError('ordered tag list not equal to present taglist')
 
@@ -1446,33 +1519,27 @@ class Pdata(object):
 
         self._setp_by_tag(artist_dic,tagkw=tagkw,**nested_attr_tag_value_dic)
 
-    def creat_list_of_axes_by_tagseq(self,force_axs=None,tagseq=None,
-                                     ncols=1,sharex=True,**subplot_kwargs):
-        """
-        """
-        tag_list=_replace_none_by_given(tagseq,self._taglist)
-        num=len(tag_list)
-        axs = _build_list_of_axes_by_num(num,force_axs=force_axs,ncols=ncols,
-                                         sharex=sharex,**subplot_kwargs)
-        return dict(zip(tag_list,axs))
 
     def plot_split_axes(self,force_axs=None,force_taglist=None,
-                        force_axdic=None,ncols=1,sharex=True,
+                        force_axdic=None,ncols=1, column_major=False,
+                        sharex=True, sharey=False,
                         tagpos='ul',unit=None,xlim=None,
                         plotkw={},**subplot_kwargs):
 
-        if force_axdic == None:
-            axdic = self.creat_list_of_axes_by_tagseq(force_axs=force_axs,
-                            tagseq=force_taglist,ncols=ncols,
-                            sharex=sharex,**subplot_kwargs)
-        else:
-            axdic = force_axdic
+        axdic = _creat_dict_of_tagaxes_by_tagseq(force_axs=force_axs,
+                            tagseq=force_taglist,
+                            default_tagseq=self._taglist,
+                            ncols=ncols, column_major=column_major,
+                            sharex=sharex, sharey=sharey,
+                            force_axdic=force_axdic,
+                            **subplot_kwargs)
 
         for tag,axt in axdic.items():
             pd_temp=self.regroup_data_by_tag([tag])
             pd_temp.plot(axt,**plotkw)
         _treat_axes_dict(axdic,tagpos=tagpos,unit=unit,xlim=xlim)
         self.axes = axdic
+        self.axdic = axdic
 
     def imshow(self,force_axs=None,tagseq=None):
         pass
@@ -1657,41 +1724,6 @@ def from_DataFrame(df,df_func=None,index_func=None,force_sharex=None):
         pd.add_entry_sharex_noerror_by_dic(df,x=force_sharex)
     return pd
 
-def _build_list_of_axes_by_num(num,force_axs=None,ncols=None,**kwargs):
-    if force_axs==None:
-        if ncols == 1:
-            fig,axs=plt.subplots(nrows=num, ncols=1, **kwargs)
-        else:
-            if num%ncols == 0:
-                nrows=num/ncols
-            else:
-                nrows=num/ncols+1
-            fig,axt=plt.subplots(nrows=nrows, ncols=ncols, **kwargs)
-            axs=axt.flatten()[0:num]
-    else:
-        if num<=len(force_axs):
-            axs=force_axs[0:num]
-        else:
-            raise ValueError("given force_axs length is smaller than required.")
-    return axs
-
-def _treat_axes_dict(axdic,tagpos='ul',unit=None,xlim=None):
-    """
-    Label tag and unit for a dictionary of axes with tag as keys.
-    """
-    for tag,axt in axdic.items():
-        g.Set_AxText(axt,tag,tagpos)
-        if unit !=None :
-            if isinstance(unit,str):
-                print "forced unit is used"
-                axt.set_ylabel(unit)
-            else:
-                raise ValueError("Strange unit")
-        else:
-            pass
-
-        if xlim != None:
-            axt.set_xlim(xlim)
 
 
 class NestPdata(object):
@@ -1702,37 +1734,52 @@ class NestPdata(object):
         nestpdata_datadic = {}
         for parent_tag in dic_pdata.keys():
             pdtemp = dic_pdata[parent_tag]
-            nestpdata_datadic[parent_tag] = pdtemp.data
+            nestpdata_datadic[parent_tag] = copy.deepcopy(pdtemp.data)
         self.data = nestpdata_datadic
         self.parent_tags = self.data.keys()
         self.child_pdata = dic_pdata
         self.child_tags = self.child_pdata.values()[0].list_tags()
 
-    def permuate_tag(self):
-        self.data = pb.Dic_Nested_Permuate_Key(self.data)
-        self.parent_tags = self.data.keys()
-        self.child_pdata = {}
-        for parent_tag in self.parent_tags:
-            pdata_temp = Pdata()
-            pdata_temp.add_entry_by_dic(**self.data[parent_tag])
-            self.child_pdata[parent_tag] = pdata_temp
+    def set_parent_tag_order(self,taglist):
+        self.parent_tags = taglist[:]
+
+    def set_child_tag_order(self,taglist):
+        for ptag in self.parent_tags:
+            self.child_pdata[ptag].set_tag_order(taglist)
         self.child_tags = self.child_pdata.values()[0].list_tags()
 
-    def creat_list_of_axes_by_tagseq(self,force_axs=None,tagseq=None,ncols=1,sharex=True,**subplot_kwargs):
-        """
-        """
-        tag_list=_replace_none_by_given(tagseq,self.parent_tags)
-        num=len(tag_list)
-        axs = _build_list_of_axes_by_num(num,force_axs=force_axs,ncols=ncols,sharex=sharex,**subplot_kwargs)
-        return dict(zip(tag_list,axs))
+    def permuate_tag(self):
+        '''
+        Notes:
+        ------
+        1. the sequence of parent_tags and child_tags are reserved.
+        '''
+        ptags = copy.deepcopy(self.parent_tags)
+        ctags = copy.deepcopy(self.child_tags)
 
-    def plot_split_parent_tag(self,force_axs=None,parent_tagseq=None,force_axdic=None,ncols=1,sharex=True,tagpos='ul',unit=None,xlim=None,plotkw={},**subplot_kwargs):
+        self.data = pb.Dic_Nested_Permuate_Key(self.data)
+        self.parent_tags = ctags
+        self.child_pdata = {}
+        for parent_tag in self.parent_tags:
+            pdata_temp = Pdata(self.data[parent_tag])
+            self.child_pdata[parent_tag] = pdata_temp
+        self.child_tags = ptags
+
+
+    def plot_split_parent_tag(self,force_axs=None,parent_tagseq=None,
+                              force_axdic=None,ncols=1,
+                              sharex=True, sharey=False,
+                              tagpos='ul',unit=None,xlim=None,
+                              plotkw={},**subplot_kwargs):
         """
         """
-        if force_axdic == None:
-            axdic = self.creat_list_of_axes_by_tagseq(force_axs=force_axs,tagseq=parent_tagseq,ncols=ncols,sharex=sharex,**subplot_kwargs)
-        else:
-            axdic = force_axdic
+        axdic = _creat_dict_of_tagaxes_by_tagseq(force_axs=force_axs,
+                            tagseq=parent_tagseq,
+                            default_tagseq=self.parent_tags,
+                            ncols=ncols,
+                            sharex=sharex, sharey=sharey,
+                            force_axdic=force_axdic,
+                            **subplot_kwargs)
 
         for tag,axt in axdic.items():
             pd_temp = self.child_pdata[tag]
@@ -1742,13 +1789,20 @@ class NestPdata(object):
         self.axes = axdic
 
 
-    def plot_split_parent_tag_stackline(self,force_axs=None,parent_tagseq=None,force_axdic=None,ncols=1,sharex=True,tagpos='ul',unit=None,xlim=None,fillkw={},plotkw={},**subplot_kwargs):
+    def plot_split_parent_tag_stackline(self,force_axs=None,
+                        parent_tagseq=None,force_axdic=None,
+                        ncols=1,sharex=True,tagpos='ul',
+                        unit=None,xlim=None,fillkw={},
+                        plotkw={},**subplot_kwargs):
         """
         """
-        if force_axdic == None:
-            axdic = self.creat_list_of_axes_by_tagseq(force_axs=force_axs,tagseq=parent_tagseq,ncols=ncols,sharex=sharex,**subplot_kwargs)
-        else:
-            axdic = force_axdic
+        axdic = _creat_dict_of_tagaxes_by_tagseq(force_axs=force_axs,
+                            tagseq=parent_tagseq,
+                            default_tagseq=self.parent_tags,
+                            ncols=ncols,
+                            sharex=sharex, sharey=sharey,
+                            force_axdic=force_axdic,
+                            **subplot_kwargs)
 
         for tag,axt in axdic.items():
             pd_temp = self.child_pdata[tag]
@@ -1780,5 +1834,11 @@ class NestPdata(object):
             return nestpd
         else:
             raise ValueError("unknown mode.")
+
+    def setp_tag(self,plottype,tagkw=False,**nested_attr_tag_value_dic):
+        for pdtemp in self.child_pdata.values():
+            pdtemp.setp_tag(plottype, tagkw=tagkw,
+                           **nested_attr_tag_value_dic)
+
 
 
