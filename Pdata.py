@@ -3,7 +3,6 @@ import matplotlib
 import matplotlib as mat
 import matplotlib.pyplot as plt
 import numpy as np
-import pupynere as pu
 import pandas as pa
 import pickle as pk
 import os as os
@@ -293,6 +292,82 @@ def _treat_axes_dict(axdic,tagpos='ul',unit=None,xlim=None):
         if xlim != None:
             axt.set_xlim(xlim)
 
+def _creat_dict_of_tagaxes_by_tagseq_g(**kwargs):
+    """
+    This is to try supersede the functions of
+    _creat_dict_of_tagaxes_by_tagseq and _treat_axes_dict
+    Return a dictionary of tag/axes.
+
+    Parameters:
+    -----------
+    kwargs:
+        force_axs: force the axes.
+        tagseq: the sequence for parent tags.
+        force_axdic: force a dictionary of parent_tag/axes pairs.
+        ncols: num of columns when force_axs == None
+        sharex,sharey: the same as plt.subplots
+        tagpos: the position of parent_tag
+        column_major: True if parent tags are deployed in column-wise.
+        unit: used as ylabel for each subplot
+        xlim: xlim
+        subkw: kwarg in plt.subplots function
+
+    """
+    paradict = dict(force_axs=None,tagseq=None,
+                         default_tagseq=None,
+                         ncols=1, column_major=False,
+                         sharex=True, sharey=False,
+                         force_axdic=None,
+                         tagpos='ul', unit=None, xlim=None,
+                         subkw={})
+
+    extra_keylist = pb.StringListAnotB(kwargs.keys(),paradict.keys())
+    if len(extra_keylist) != 0:
+        raise ValueError('''keyword '{0}' not in paradict'''
+                            .format(extra_keylist[0]))
+    else:
+        paradict.update(kwargs)
+
+    #retrieve the values
+    force_axs = paradict['force_axs']
+    tagseq = paradict['tagseq']
+    default_tagseq = paradict['default_tagseq']
+    ncols = paradict['ncols']
+    column_major = paradict['column_major']
+    sharex = paradict['sharex']
+    sharey = paradict['sharey']
+    force_axdic = paradict['force_axdic']
+    tagpos = paradict['tagpos']
+    unit = paradict['unit']
+    xlim = paradict['xlim']
+    subkw = paradict['subkw']
+
+    if force_axdic != None:
+        axdic = force_axdic
+    else:
+        tag_list=_replace_none_by_given(tagseq, default_tagseq)
+        num=len(tag_list)
+        axs = _build_list_of_axes_by_num(num,force_axs=force_axs,ncols=ncols,
+                                         sharex=sharex, sharey=sharey,
+                                         column_major=column_major,
+                                         **subkw)
+        axdic = dict(zip(tag_list,axs))
+
+    for tag,axt in axdic.items():
+        g.Set_AxText(axt,tag,tagpos)
+        if unit !=None :
+            if isinstance(unit,str):
+                print "forced unit is used"
+                axt.set_ylabel(unit)
+            else:
+                raise ValueError("Strange unit")
+        else:
+            pass
+
+        if xlim != None:
+            axt.set_xlim(xlim)
+
+    return axdic
 
 class Pdata(object):
     """
@@ -864,6 +939,8 @@ class Pdata(object):
         **bar:
             barcolor
         """
+        if not isinstance(tagkw,(bool,str)):
+            raise TypeError('''tagkw not bool or str type.''')
         for attr_name,tag_attr_value in nested_attr_tag_value_dic.items():
             final_dic = Pdata._expand_tag_value_to_dic(self._taglist,
                                                      tag_attr_value, tagkw)
@@ -1064,7 +1141,7 @@ class Pdata(object):
         legdic: the legend is set by using g.ProxyLegend(), legdic could
             be passed as kwargs for the function of
             g.ProxyLegend.create_legend
-        kwargs: used for plt.fill_between functions.
+        fillkw: used for plt.fill_between functions.
 
         Returns:
         --------
@@ -1520,25 +1597,29 @@ class Pdata(object):
 
         self._setp_by_tag(artist_dic,tagkw=tagkw,**nested_attr_tag_value_dic)
 
+    def plot_split_axes(self,plotkw={},**kwargs):
+        '''
+        Plot by using parent tags as label for subplots.
 
-    def plot_split_axes(self,force_axs=None,force_taglist=None,
-                        force_axdic=None,ncols=1, column_major=False,
-                        sharex=True, sharey=False,
-                        tagpos='ul',unit=None,xlim=None,
-                        plotkw={},**subplot_kwargs):
-
-        axdic = _creat_dict_of_tagaxes_by_tagseq(force_axs=force_axs,
-                            tagseq=force_taglist,
-                            default_tagseq=self._taglist,
-                            ncols=ncols, column_major=column_major,
-                            sharex=sharex, sharey=sharey,
-                            force_axdic=force_axdic,
-                            **subplot_kwargs)
-
+        Parameters:
+        -----------
+        plotkw: the keyword used in plt.plot function.
+        kwargs:
+            force_axs: force the axes.
+            tagseq: the tag sequence, default is self._taglist
+            force_axdic: force a dictionary of parent_tag/axes pairs.
+            ncols: num of columns when force_axs == None
+            sharex,sharey: the same as plt.subplots
+            tagpos: the position of parent_tag
+            column_major: True if parent tags are deployed in column-wise.
+            unit: used as ylabel for each subplot
+            xlim: xlim
+        '''
+        axdic = _creat_dict_of_tagaxes_by_tagseq_g(
+                        default_tagseq=self._taglist,**kwargs)
         for tag,axt in axdic.items():
             pd_temp=self.regroup_data_by_tag([tag])
             pd_temp.plot(axt,**plotkw)
-        _treat_axes_dict(axdic,tagpos=tagpos,unit=unit,xlim=xlim)
         self.axes = axdic
         self.axdic = axdic
 
@@ -1786,87 +1867,71 @@ class NestPdata(object):
         self.child_tags = ptags
 
 
-    def plot_split_parent_tag(self,force_axs=None,parent_tagseq=None,
-                              force_axdic=None,ncols=1,
-                              column_major=False,
-                              sharex=True, sharey=False,
-                              tagpos='ul',unit=None,xlim=None,
-                              plotkw={},**subplot_kwargs):
+
+    def plot_split_parent_tag(self,plotkw={},**kwargs):
         """
         Plot by using parent tags as label for subplots.
 
         Parameters:
         -----------
-        force_axs: force the axes.
-        parent_tagseq: the sequence for parent tags.
-        force_axdic: force a dictionary of parent_tag/axes pairs.
-        ncols: num of columns when force_axs == None
-        sharex,sharey: the same as plt.subplots
-        tagpos: the position of parent_tag
-        column_major: True if parent tags are deployed in column-wise.
-        unit: used as ylabel for each subplot
-        xlim: xlim
         plotkw: the keyword used in plt.plot function.
+        kwargs:
+            force_axs: force the axes.
+            tagseq: the sequence for parent tags.
+            force_axdic: force a dictionary of parent_tag/axes pairs.
+            ncols: num of columns when force_axs == None
+            sharex,sharey: the same as plt.subplots
+            tagpos: the position of parent_tag
+            column_major: True if parent tags are deployed in column-wise.
+            unit: used as ylabel for each subplot
+            xlim: xlim
+            plotkw: the keyword used in plt.plot function.
         """
-        axdic = _creat_dict_of_tagaxes_by_tagseq(force_axs=force_axs,
-                            tagseq=parent_tagseq,
-                            default_tagseq=self.parent_tags,
-                            ncols=ncols, column_major=column_major,
-                            sharex=sharex, sharey=sharey,
-                            force_axdic=force_axdic,
-                            **subplot_kwargs)
+        axdic = _creat_dict_of_tagaxes_by_tagseq_g(
+                            default_tagseq=self.parent_tags, **kwargs)
 
         for tag,axt in axdic.items():
             pd_temp = self.child_pdata[tag]
             pd_temp.plot(axt,**plotkw)
 
-        _treat_axes_dict(axdic,tagpos=tagpos,unit=unit,xlim=xlim)
         self.axes = axdic
+        self.axdic = axdic
 
 
-    def nest_pdfunc(plot_func):
-        def call_func_for_nestpd():
-            axdic = _creat_dict_of_tagaxes_by_tagseq(force_axs=force_axs,
-                            tagseq=parent_tagseq,
-                            default_tagseq=self.parent_tags,
-                            ncols=ncols,
-                            sharex=sharex, sharey=sharey,
-                            force_axdic=force_axdic,
-                            **subplot_kwargs)
-            for tag,axt in axdic.items():
-                pd_temp = self.child_pdata[tag]
-                pd_temp.plot_stackline(axes=axt,fillkw=fillkw,**plotkw)
-
-            _treat_axes_dict(axdic,tagpos=tagpos,unit=unit,xlim=xlim)
-            self.axes = axdic
-        return call_func_for_nestpd
-
-
-    def plot_split_parent_tag_stackline(self,force_axs=None,
-                        parent_tagseq=None,
-                        force_axdic=None,ncols=1,
-                        column_major=False,
-                        sharex=True, sharey=False,
-                        tagpos='ul', unit=None, xlim=None,
-                        fillkw=None,
-                        plotkw={},**subplot_kwargs):
+    def plot_stackline_split_parent_tag(self,
+                        fillkw={}, legdic={},
+                        stackw={}, **kwargs):
         """
-        """
-        axdic = _creat_dict_of_tagaxes_by_tagseq(force_axs=force_axs,
-                            tagseq=parent_tagseq,
-                            default_tagseq=self.parent_tags,
-                            ncols=ncols, column_major=column_major,
-                            sharex=sharex, sharey=sharey,
-                            force_axdic=force_axdic,
-                            **subplot_kwargs)
+        Plot for each parent tag a stackline plot in a subplot
 
+        Parameters:
+        -----------
+        fillkw: kwargs in plt.fill_between function
+        legdic: kwargs in plt.legend function
+        stackw: parameters in Pdata.Pdata.plot_stackline function,
+            including: tagseq(child tags),colors,bottom_fill,
+                       legend(boolean)
+        kwargs:
+            force_axs: force the axes.
+            tagseq: the sequence for parent tags.
+            force_axdic: force a dictionary of parent_tag/axes pairs.
+            ncols: num of columns when force_axs == None
+            sharex,sharey: the same as plt.subplots
+            tagpos: the position of parent_tag
+            column_major: True if parent tags are deployed in column-wise.
+            unit: used as ylabel for each subplot
+            xlim: xlim
+            subkw: kwarg in plt.subplots function
+        """
+        axdic = _creat_dict_of_tagaxes_by_tagseq_g(
+                            default_tagseq=self.parent_tags, **kwargs)
         for tag,axt in axdic.items():
             pd_temp = self.child_pdata[tag]
-            pd_temp.plot_stackline(axes=axt,fillkw=fillkw,**plotkw)
+            pd_temp.plot_stackline(axes=axt, fillkw=fillkw,
+                                   legdic=legdic, **stackw)
 
-        _treat_axes_dict(axdic,tagpos=tagpos,unit=unit,xlim=xlim)
+        self.axdic = axdic
         self.axes = axdic
-
 
     def copy(self):
         nestpd_dic = {}
