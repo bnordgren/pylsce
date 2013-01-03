@@ -263,15 +263,16 @@ def _creat_dict_of_tagaxes_by_tagseq(force_axs=None,tagseq=None,
     default_tagseq: tagseq that's used as default.
 
     """
-    tag_list=_replace_none_by_given(tagseq, default_tagseq)
-    num=len(tag_list)
-    axs = _build_list_of_axes_by_num(num,force_axs=force_axs,ncols=ncols,
-                                     sharex=sharex, sharey=sharey,
-                                     column_major=column_major,
-                                     **subplot_kwargs)
+
     if force_axdic != None:
         return force_axdic
     else:
+        tag_list=_replace_none_by_given(tagseq, default_tagseq)
+        num=len(tag_list)
+        axs = _build_list_of_axes_by_num(num,force_axs=force_axs,ncols=ncols,
+                                         sharex=sharex, sharey=sharey,
+                                         column_major=column_major,
+                                         **subplot_kwargs)
         return dict(zip(tag_list,axs))
 
 def _treat_axes_dict(axdic,tagpos='ul',unit=None,xlim=None):
@@ -1678,28 +1679,43 @@ def plot_dic_as_pdata_sharex_noerror(indic,force_axs=None,sharex=True,tagpos='ul
     pd.plot_split_axes_byX(force_axs=force_axs,sharex=sharex,tagpos=tagpos,unit=unit,ylab=ylab,force_taglist=force_taglist,ncols=ncols,plotkw={},**fig_kw)
     return pd
 
-def read_csv(filepath_or_buffer,sep=',',header=0,index_col=None,index_func=None,names=None,date_parser=None,skiprows=None,na_values=None,df_func=None,
+def read_csv(filepath_or_buffer,sep=',',header=0,index_col=None,
+             index_func=None,names=None,date_parser=None,
+             skiprows=None,na_values=None,df_func=None,
              force_sharex=None,**kwds):
     """
-    A wrapper of pa.read_csv and Pdata.Pdata.add_entry_sharex_noerror_by_dic, to read csv directly to Pdata.Pdata
+    A wrapper of pa.read_csv and Pdata.from_DataFrame,
+        to read csv directly to Pdata.Pdata
 
     Parameters:
     -----------
-    force_sharex: use force_sharex to overwrite the default sharex of Pdata that are the index column of the csv/DataFrame object.
+    force_sharex: use force_sharex to overwrite the default sharex of
+        Pdata that are the index column of the csv/DataFrame object.
 
     Notes
     -----
-    1. the index_col (index of the pandas DataFrame) will be treated as shared xaxis of the Pdata.Pdata object
-    2. the (column) names of the pandas.DataFrame object will be used as tags in the Pdata.Pdata object.
+    1. the index_col (index of the pandas DataFrame) will be treated as
+        shared xaxis of the Pdata.Pdata object
+    2. the (column) names of the pandas.DataFrame object will be used
+        as tags in the Pdata.Pdata object.
 
     See also
     --------
     from_DataFrame
     """
-    df = pa.read_csv(filepath_or_buffer, sep=sep, dialect=None, header=header, index_col=index_col, names=names, skiprows=skiprows, na_values=na_values, keep_default_na=True,                     thousands=None, comment=None, parse_dates=False, keep_date_col=False, dayfirst=False, date_parser=date_parser, nrows=None, iterator=False, 
-                     chunksize=None, skip_footer=0, converters=None, verbose=False, delimiter=None, encoding=None, squeeze=False, **kwds)
+    df = pa.read_csv(filepath_or_buffer, sep=sep, dialect=None,
+                     header=header, index_col=index_col, names=names,
+                     skiprows=skiprows, na_values=na_values,
+                     keep_default_na=True,
+                     thousands=None, comment=None, parse_dates=False,
+                     keep_date_col=False, dayfirst=False,
+                     date_parser=date_parser, nrows=None, iterator=False,
+                     chunksize=None, skip_footer=0, converters=None,
+                     verbose=False, delimiter=None,
+                     encoding=None, squeeze=False, **kwds)
 
-    return from_DataFrame(df,df_func=df_func,index_func=index_func,force_sharex=force_sharex)
+    return from_DataFrame(df,df_func=df_func,index_func=index_func,
+                          force_sharex=force_sharex)
 
 def from_DataFrame(df,df_func=None,index_func=None,force_sharex=None):
     """
@@ -1708,9 +1724,13 @@ def from_DataFrame(df,df_func=None,index_func=None,force_sharex=None):
     Parameters:
     -----------
     df_func: function that applies on DataFrame before feeding data into Pdata.
-    index_func: index function that will be applied before using the DataFrame index as shared xaxis of the Pdata object, this is useful as sometimes DataFrame index could
-        be a bit strange and not readily compatible with matplotlib functions.
-    force_sharex: In case index_func could not achieve the object to transform the index to desired sharex xaxis, force_sharex is used to force write the Pdata shared xaxis.
+    index_func: index function that will be applied before using the
+        DataFrame index as shared xaxis of the Pdata object, this is
+        useful as sometimes DataFrame index could be a bit strange
+        and not readily compatible with matplotlib functions.
+    force_sharex: In case index_func could not achieve the object to
+        transform the index to desired sharex xaxis, force_sharex
+        is used to force write the Pdata shared xaxis.
     """
     pd = Pdata()
     if df_func != None:
@@ -1768,15 +1788,30 @@ class NestPdata(object):
 
     def plot_split_parent_tag(self,force_axs=None,parent_tagseq=None,
                               force_axdic=None,ncols=1,
+                              column_major=False,
                               sharex=True, sharey=False,
                               tagpos='ul',unit=None,xlim=None,
                               plotkw={},**subplot_kwargs):
         """
+        Plot by using parent tags as label for subplots.
+
+        Parameters:
+        -----------
+        force_axs: force the axes.
+        parent_tagseq: the sequence for parent tags.
+        force_axdic: force a dictionary of parent_tag/axes pairs.
+        ncols: num of columns when force_axs == None
+        sharex,sharey: the same as plt.subplots
+        tagpos: the position of parent_tag
+        column_major: True if parent tags are deployed in column-wise.
+        unit: used as ylabel for each subplot
+        xlim: xlim
+        plotkw: the keyword used in plt.plot function.
         """
         axdic = _creat_dict_of_tagaxes_by_tagseq(force_axs=force_axs,
                             tagseq=parent_tagseq,
                             default_tagseq=self.parent_tags,
-                            ncols=ncols,
+                            ncols=ncols, column_major=column_major,
                             sharex=sharex, sharey=sharey,
                             force_axdic=force_axdic,
                             **subplot_kwargs)
@@ -1789,17 +1824,38 @@ class NestPdata(object):
         self.axes = axdic
 
 
+    def nest_pdfunc(plot_func):
+        def call_func_for_nestpd():
+            axdic = _creat_dict_of_tagaxes_by_tagseq(force_axs=force_axs,
+                            tagseq=parent_tagseq,
+                            default_tagseq=self.parent_tags,
+                            ncols=ncols,
+                            sharex=sharex, sharey=sharey,
+                            force_axdic=force_axdic,
+                            **subplot_kwargs)
+            for tag,axt in axdic.items():
+                pd_temp = self.child_pdata[tag]
+                pd_temp.plot_stackline(axes=axt,fillkw=fillkw,**plotkw)
+
+            _treat_axes_dict(axdic,tagpos=tagpos,unit=unit,xlim=xlim)
+            self.axes = axdic
+        return call_func_for_nestpd
+
+
     def plot_split_parent_tag_stackline(self,force_axs=None,
-                        parent_tagseq=None,force_axdic=None,
-                        ncols=1,sharex=True,tagpos='ul',
-                        unit=None,xlim=None,fillkw={},
+                        parent_tagseq=None,
+                        force_axdic=None,ncols=1,
+                        column_major=False,
+                        sharex=True, sharey=False,
+                        tagpos='ul', unit=None, xlim=None,
+                        fillkw=None,
                         plotkw={},**subplot_kwargs):
         """
         """
         axdic = _creat_dict_of_tagaxes_by_tagseq(force_axs=force_axs,
                             tagseq=parent_tagseq,
                             default_tagseq=self.parent_tags,
-                            ncols=ncols,
+                            ncols=ncols, column_major=column_major,
                             sharex=sharex, sharey=sharey,
                             force_axdic=force_axdic,
                             **subplot_kwargs)
@@ -1810,6 +1866,7 @@ class NestPdata(object):
 
         _treat_axes_dict(axdic,tagpos=tagpos,unit=unit,xlim=xlim)
         self.axes = axdic
+
 
     def copy(self):
         nestpd_dic = {}
