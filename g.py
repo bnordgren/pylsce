@@ -3,7 +3,6 @@ import matplotlib
 import matplotlib as mat
 import matplotlib.pyplot as plt
 import numpy as np
-import pupynere as pu
 import pandas as pa
 import pickle as pk
 import mathex as mathex
@@ -660,10 +659,12 @@ def Set_AxText(ax,text_string,pos='uc',ftdic={'size':12},**kwargs):
         >>> g.Set_AxText_eg()
         >>> plt.show()
     """
-    if pos==None:
+    if pos==None or pos==False:
         pass
     elif pos=='lc':
         ax.text(0.5, 0.05,text_string,horizontalalignment='center',verticalalignment='center',transform = ax.transAxes,fontdict=ftdic,**kwargs)
+    elif pos=='ouc':
+        ax.text(0.5, 1.02,text_string,horizontalalignment='center',verticalalignment='bottom',transform = ax.transAxes,fontdict=ftdic,**kwargs)
     elif pos=='uc':
         ax.text(0.5, 0.93,text_string,horizontalalignment='center',verticalalignment='center',transform = ax.transAxes,fontdict=ftdic,**kwargs)
     elif pos=='ll':
