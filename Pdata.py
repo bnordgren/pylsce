@@ -21,6 +21,8 @@ import g
 import exio
 import copy as copy
 
+
+
 def gsetp(*artist,**kwargs):
     """
     Purpose: set artist properties by kwagrs pairs in an easy and flexible way.
@@ -318,7 +320,8 @@ def _creat_dict_of_tagaxes_by_tagseq_g(**kwargs):
                          ncols=1, column_major=False,
                          sharex=True, sharey=False,
                          force_axdic=None,
-                         tagpos='ul', unit=None, xlim=None,
+                         tagpos=None, default_tagpos='ul',
+                         unit=None, xlim=None,
                          subkw={})
 
     extra_keylist = pb.StringListAnotB(kwargs.keys(),paradict.keys())
@@ -337,6 +340,7 @@ def _creat_dict_of_tagaxes_by_tagseq_g(**kwargs):
     sharex = paradict['sharex']
     sharey = paradict['sharey']
     force_axdic = paradict['force_axdic']
+    default_tagpos = paradict['default_tagpos']
     tagpos = paradict['tagpos']
     unit = paradict['unit']
     xlim = paradict['xlim']
@@ -353,7 +357,12 @@ def _creat_dict_of_tagaxes_by_tagseq_g(**kwargs):
                                          **subkw)
         axdic = dict(zip(tag_list,axs))
 
+    #print 'default_tagpos before',default_tagpos
     for tag,axt in axdic.items():
+        default_tagpos = _replace_none_by_given(default_tagpos, 'ul')
+        tagpos = _replace_none_by_given(tagpos, default_tagpos)
+        #print 'default_tagpos',default_tagpos
+        #print 'tagpos',tagpos
         g.Set_AxText(axt,tag,tagpos)
         if unit !=None :
             if isinstance(unit,str):
@@ -1962,5 +1971,58 @@ class NestPdata(object):
             pdtemp.setp_tag(plottype, tagkw=tagkw,
                            **nested_attr_tag_value_dic)
 
+
+class Mdata(Pdata):
+    def imshow_split_axes(self, cmap=None, norm=None, aspect=None,
+                          interpolation=None, alpha=None, vmin=None,
+                          vmax=None, origin=None, extent=None,
+                          imkw={}, cbar=False, cbarkw = {},
+                          **kwargs):
+        '''
+        imshow each tag on a subplot.
+
+        Parameters:
+        -----------
+        imkw: the keyword used in plt.imshow function.
+        kwargs:
+            force_axs: force the axes.
+            tagseq: the tag sequence, default is self._taglist
+            force_axdic: force a dictionary of parent_tag/axes pairs.
+            ncols: num of columns when force_axs == None
+            sharex,sharey: the same as plt.subplots
+            tagpos: the position of parent_tag
+            column_major: True if parent tags are deployed in column-wise.
+            unit: used as ylabel for each subplot
+            xlim: xlim
+        '''
+        axdic = _creat_dict_of_tagaxes_by_tagseq_g(
+                        default_tagseq=self._taglist,
+                        default_tagpos='ouc',
+                        **kwargs)
+        imgdic={}
+        for tag,axt in axdic.items():
+            img = axt.imshow(self.data[tag]['y'], cmap=cmap, norm=norm,
+                       aspect=aspect,
+                       interpolation=interpolation, alpha=alpha,
+                       vmin=vmin, vmax=vmax, origin=origin,
+                       extent=extent, **imkw)
+            imgdic[tag] = img
+        self.axdic = axdic
+        self.imgdic = imgdic
+
+        if cbar == True:
+            self.colorbar('img',**cbarkw)
+
+    def colorbar(self,plottype,**kw):
+        if plottype == 'img':
+            mappable_dict = self.imgdic
+        else:
+            raise ValueError("plottype not known!")
+
+        cbardic = {}
+        for tag,mappable in mappable_dict.items():
+            cbar = plt.colorbar(mappable,ax=mappable.axes,**kw)
+            cbardic[tag] = cbar
+        self.cbardic = cbardic
 
 

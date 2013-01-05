@@ -1230,6 +1230,37 @@ def ndarray_group_txt_by_func(filelist,outputfile=None,func=None,fmt='%.18e', de
         np.savetxt(outputfile, arr, fmt=fmt, delimiter=delimiter, newline=newline)
 
 
+def ndarray_mask_by_threshold(pdata,map_threshold):
+    '''
+    Mask a ndarray by map_threhold
+
+    Parameters:
+    -----------
+    map_threshold --> dictionary like {'lb':2000,'ub':5000}, data
+        less than 2000 and greater than 5000 will be masked.
+    '''
+    #mask by map_threshold
+    if map_threshold==None:
+        return pdata
+    else:
+        if not isinstance(map_threshold,dict):
+            raise ValueError('please provide a dictionary for map_threshold')
+        else:
+            for bound_key in map_threshold.keys():
+                if bound_key not in ['lb','ub']:
+                    raise ValueError ('Incorrect key is used.')
+            if len(map_threshold.keys())==1:
+                if map_threshold.keys()[0]=='lb':
+                    lower_bound=map_threshold['lb']
+                    pdata=np.ma.masked_less(pdata,lower_bound)
+                elif map_threshold.keys()[0]=='ub':
+                    upper_bound=map_threshold['ub']
+                    pdata=np.ma.masked_greater(pdata,upper_bound)
+            else:
+                lower_bound=map_threshold['lb']
+                upper_bound=map_threshold['ub']
+                pdata=np.ma.masked_where(np.logical_not((pdata>lower_bound)&(pdata<upper_bound)),pdata)
+        return pdata
 
 
 
