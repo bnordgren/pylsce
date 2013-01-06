@@ -1458,10 +1458,7 @@ class Ncdata(object):
     def Plot_PointValue_PFTsum(self,var,(vlat,vlon),ax=None,ylab=False,pyfunc=None):
         pass
 
-    def Add_Vars_to_Pdata(self,varlist,npindex=np.s_[:],unit=True,pd=None,pftsum=False,spa=None):
-        """
-        This will add the varnames in varlist to a Pdata object specified by npindex, note the npindex must be numpy index trick object (np.s_).
-        """
+    def _get_final_ncdata_by_flag(self,pftsum=False,spa=None):
         if spa=='sum':
             final_ncdata=self.spasum
         elif spa=='mean':
@@ -1472,8 +1469,19 @@ class Ncdata(object):
             else:
                 final_ncdata=self.d1
         else:
-            raise ValueError("spatial operation '{0}' not expected!".format(spa))
+            raise ValueError('''spatial operation '{0}' not expected!'''
+                             .format(spa))
+        return final_ncdata
 
+    def Add_Vars_to_Pdata(self,varlist,npindex=np.s_[:],unit=True,
+                          pd=None,pftsum=False,spa=None):
+        """
+        This will add the varnames in varlist to a Pdata object
+            specified by npindex, note the npindex must be numpy
+            index trick object (np.s_).
+        """
+        final_ncdata = self._get_final_ncdata_by_flag(pftsum=pftsum,
+                            spa=spa)
         if pd==None:
             pd=Pdata.Pdata()
         for varname in varlist:
@@ -1482,12 +1490,74 @@ class Ncdata(object):
             pd.add_entry_noerror(x,data,varname)
             if unit==True:
                 try:
-                    pd.add_attr_by_tag(unit=[(varname,self.d0.__dict__[varname].getncattr('units'))])
+                    pd.add_attr_by_tag(unit=[(varname,
+                            self.d0.__dict__[varname].getncattr('units'))])
                 except AttributeError:
                     pass
         return pd
 
-    def break_by_region(self,varname,separation_array,forcedata=None,pyfunc=None,dimred_func=None,pftsum=False):
+    def Add_Vars_to_Mdata(self,varlist,npindex=np.s_[:],
+                          md=None,pftsum=False,spa=None):
+        '''
+        Add several vars to Mdata for easy mapping.
+        '''
+        final_ncdata = self._get_final_ncdata_by_flag(pftsum=pftsum,
+                            spa=spa)
+        if md==None:
+            md=Pdata.Mdata()
+
+        for varname in varlist:
+            data=final_ncdata.__dict__[varname][npindex]
+            md.add_tag(varname)
+            md.add_array(data)
+            md.add_lat_lon(tag=varname,lat=self.lat,lon=self.lon)
+        return md
+
+    def Add_Single_Var_Mdata(self,varname,taglist=None,md=None,
+                             pftsum=False,spa=None,npindex_list=None):
+        '''
+        Add single var to Mdata to explore the difference among
+            different dimensions.
+
+        Parameters:
+        -----------
+        varname: the final data used for 'varname' should be of dim
+            (tag_length,lat,lon),tag_length could be equal to dimension
+            length.
+        taglist: could be dimension name or other name.
+        npindex_list: used to select only few dimensions for mapping.
+            when npindex_list==None, the final array for varname must be
+            of 3dimensions, the len(taglist) must be equal to the length
+            of first dimension of the array.
+        '''
+        final_ncdata = self._get_final_ncdata_by_flag(pftsum=pftsum,spa=spa)
+        maparray = final_ncdata.__dict__[varname]
+        if md==None:
+            md=Pdata.Mdata()
+        if npindex_list == None:
+            if len(taglist) != maparray.shape[0]:
+                raise ValueError('''the length of tgalist and first
+                    dimension of maparray not equal!''')
+            else:
+                for tag,array in zip(taglist,maparray):
+                    md.add_tag(tag)
+                    md.add_array_lat_lon(tag=tag,data=array,
+                                         lat=self.lat,lon=self.lon)
+        else:
+            if len(taglist) != len(npindex_list):
+                raise ValueError('''the length of tgalist not equal
+                    to npindex_list''')
+            else:
+                for tag,nindex in zip(taglist,npindex_list):
+                    md.add_tag(tag)
+                    md.add_array_lat_lon(tag=tag,data=maparray[nindex],
+                                         lat=self.lat,lon=self.lon)
+        return md
+
+    def break_by_region(self,varname,separation_array,
+                        forcedata=None,
+                        pyfunc=None,dimred_func=None,
+                        pftsum=False):
         """
         Break the concerned variables into regional sum or avg or extracted array by specifying the separation_array.
 
