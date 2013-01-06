@@ -20,6 +20,7 @@ from collections import Iterable
 import g
 import exio
 import copy as copy
+import bmap
 
 
 
@@ -391,7 +392,7 @@ class Pdata(object):
     _all_nonplot_keylist = _extra_nonplot_keylist + _data_base_keylist +\
                            _extra_base_keylist
     _extra_base_keylist_default=dict(zip(_extra_base_keylist,[None,0.5,0,0]))
-    _new_entry=dict(x=None,y=None,xerrl=None,xerrh=None,yerrl=None,yerrh=None)
+    _new_entry=dict.fromkeys(_data_base_keylist,None)
     _new_entry.update(_extra_base_keylist_default)
 
     _scatter_attr_base_keylist=['ssize','scolor','smarker','scmap',
@@ -1973,6 +1974,42 @@ class NestPdata(object):
 
 
 class Mdata(Pdata):
+    _data_base_keylist=['array','lat','lon']
+    _new_entry=dict.fromkeys(_data_base_keylist,None)
+
+    def add_tag(self,tag=None):
+        self.data[tag]=Mdata._new_entry.copy()
+        self._taglist.append(tag)
+
+    def add_array(self,data,tag):
+        self.data[tag]['array'] = data
+
+    def add_lat_lon(self,tag=None,lat=None,lon=None):
+        '''
+        default lat,lon is half degree global coordinates
+        '''
+        if lat == None:
+            lat = np.arange(89.5,-89.6,-1)
+        if lon == None:
+            lon = np.arange(-179.5,179.6,1)
+        self.data[tag]['lat'] = lat
+        self.data[tag]['lon'] = lon
+
+    def add_array_lat_lon(self,tag=None,data=None,lat=None,lon=None):
+        self.add_array(data,tag)
+        self.add_lat_lon(tag=tag,lat=lat,lon=lon)
+
+    def add_entry_array_bydic(self,ydic):
+        for tag,ydata in ydic.items():
+            self.add_tag(tag)
+            self.add_array(ydata,tag)
+
+    def add_entry_share_latlon_bydic(self,ydic,lat=None,lon=None):
+        for tag,ydata in ydic.items():
+            self.add_tag(tag)
+            self.add_array(ydata,tag)
+            self.add_lat_lon(tag=tag,lat=lat,lon=lon)
+
     def imshow_split_axes(self, cmap=None, norm=None, aspect=None,
                           interpolation=None, alpha=None, vmin=None,
                           vmax=None, origin=None, extent=None,
@@ -2001,7 +2038,7 @@ class Mdata(Pdata):
                         **kwargs)
         imgdic={}
         for tag,axt in axdic.items():
-            img = axt.imshow(self.data[tag]['y'], cmap=cmap, norm=norm,
+            img = axt.imshow(self.data[tag]['array'], cmap=cmap, norm=norm,
                        aspect=aspect,
                        interpolation=interpolation, alpha=alpha,
                        vmin=vmin, vmax=vmax, origin=origin,
@@ -2024,5 +2061,53 @@ class Mdata(Pdata):
             cbar = plt.colorbar(mappable,ax=mappable.axes,**kw)
             cbardic[tag] = cbar
         self.cbardic = cbardic
+
+    def mapcontourf_split_axes(self, projection='cyl',mapbound='all',
+                               gridstep=(30,30),shift=False,
+                               map_threshold=None,
+                               cmap=None,colorbarlabel=None,forcelabel=None,
+                               levels=None,data_transform=False,
+                               colorbardic={},cbarkw={},mconfkw={},
+                               **kwargs):
+        '''
+        bmap.mapcontourf each tag on a subplot.
+
+        Parameters:
+        -----------
+        c.f. bmap.mapcontourf
+        kwargs:
+            force_axs: force the axes.
+            tagseq: the tag sequence, default is self._taglist
+            force_axdic: force a dictionary of parent_tag/axes pairs.
+            ncols: num of columns when force_axs == None
+            sharex,sharey: the same as plt.subplots
+            tagpos: the position of parent_tag
+            column_major: True if parent tags are deployed in column-wise.
+            unit: used as ylabel for each subplot
+            xlim: xlim
+        '''
+        axdic = _creat_dict_of_tagaxes_by_tagseq_g(
+                        default_tagseq=self._taglist,
+                        default_tagpos='ouc',
+                        **kwargs)
+        mapconfdic={}
+        for tag,axt in axdic.items():
+            mapconf = bmap.mapcontourf(data=self.data[tag]['array'],
+                                       lat=self.data[tag]['lat'],
+                                       lon=self.data[tag]['lon'],
+                                       ax=axt, projection=projection,
+                                       mapbound=mapbound,
+                                       gridstep=gridstep,
+                                       shift=shift,
+                                       cmap=cmap,
+                                       colorbarlabel=colorbarlabel,
+                                       forcelabel=forcelabel,
+                                       levels=levels,
+                                       data_transform=data_transform,
+                                       colorbardic=colorbardic,
+                                       cbarkw=cbarkw,**mconfkw)
+            mapconfdic[tag] = mapconf
+        self.axdic = axdic
+        self.mapconfdic = mapconfdic
 
 
