@@ -81,7 +81,7 @@ class gmap(object):
                           llcrnrlon=lon1,urcrnrlon=lon2,resolution='l',ax=ax,
                           **kwargs)
             m.drawcoastlines(linewidth=0.7)
-            if gridstep!=None:
+            if gridstep!=None and gridstep!=False:
                 para_range=np.arange(near5even(lat1),near5even(lat2)+0.1,gridstep[0])
                 meri_range=np.arange(near5even(lon1),near5even(lon2)+0.1,gridstep[1])
                 m.drawparallels(para_range,labels=[1,0,0,0])
@@ -493,8 +493,8 @@ class mapcontourf(object):
                                                forcelabel=forcelabel,
                                                plotlev=plotlev,
                                                plotlab=plotlab)
-        cbar.set_ticks(ticks)
-        cbar.set_ticklabels(labels)
+            cbar.set_ticks(ticks)
+            cbar.set_ticklabels(labels)
         #return
         self.m = m
         self.cs = cs
