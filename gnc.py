@@ -21,6 +21,12 @@ home_dir = os.path.expanduser('~')
 pylab_dir = home_dir+'/'+'python/python_lib'
 basedata_dir = pylab_dir + '/base_data'
 
+def append_doc_of(fun):
+    def decorator(f):
+        f.__doc__ += fun.__doc__
+        return f
+    return decorator
+
 def find_index_by_region(globHDlon, globHDlat, region_lon, region_lat):
     """
     Find the four indices for the subregion against the whole region that will be formed by merging.
@@ -342,7 +348,7 @@ class NcWrite(object):
         self.diminfo_time_day = dict(zip(['dim_name', 'dimvar_name', 'dimvar_longname', 'dimvar_dtype', 'dimvar_unit'],['time_counter','time', 'day', 'i4', 'day'])                                      )
         self.timedim_name = self.diminfo_time_year['dim_name']
         self.timevar_name = self.diminfo_time_year['dimvar_name']
-        self.rootgrp.history = 'file created at ' + str(datetime.datetime.today())
+        self.rootgrp.history=''
 
     @staticmethod
     def _replace_none_by_given(orinput,default):
@@ -361,7 +367,7 @@ class NcWrite(object):
         self.londim_name = self.diminfo_lon['dim_name']
         self.lonvar_name = self.diminfo_lon['dimvar_name']
 
-    def add_dim(self, diminfo_value = None):
+    def add_dim(self, diminfo_value = None,**attr_kwargs):
         """
         Write dimensions and dimensional variables to NetCDF file.
         diminfo could be supplied with a list: [dim_name, dimvar_name, dimvar_longname, dimvar_dtype, dimvar_value, dimvar_unit, unlimited], with unlimited as True or False.
@@ -384,38 +390,54 @@ class NcWrite(object):
         ncdimvar[:] = diminfo['dimvar_value']
         ncdimvar.long_name = diminfo['dimvar_longname']
         ncdimvar.units = diminfo['dimvar_unit']
+        #set variable attributes by hand
+        for key,value in attr_kwargs.items():
+            ncdimvar.setncattr(key, value)
         self.dimensions[diminfo['dim_name']] = self.rootgrp.dimensions[diminfo['dim_name']]
 
 
-    def add_dim_lat(self, latvar = None):
+    def add_dim_lat(self, latvar = None, **attr_kwargs):
         """
-        A shortcut function to write latitude dimension, cf. add_dim for more information.
+        A shortcut function to write latitude dimension, cf. add_dim for
+            more information. default latvar is global half degree.
         """
         latvar = self._replace_none_by_given(latvar,np.arange(89.75,-90,-0.5))
-        lat_diminfo_value = [self.diminfo_lat['dim_name'], self.diminfo_lat['dimvar_name'], self.diminfo_lat['dimvar_longname'], 'f4', latvar, 'degrees_north', False]
-        self.add_dim(lat_diminfo_value)
+        lat_diminfo_value = [self.diminfo_lat['dim_name'],
+                             self.diminfo_lat['dimvar_name'],
+                             self.diminfo_lat['dimvar_longname'],
+                             'f4', latvar, 'degrees_north', False]
+        self.add_dim(lat_diminfo_value, **attr_kwargs)
         self.latvar = latvar
 
 
-    def add_dim_lon(self, lonvar = None):
+    def add_dim_lon(self, lonvar = None, **attr_kwargs):
         """
-        A shortcut function to write longitude dimension, cf. add_dim for more information.
+        A shortcut function to write longitude dimension, cf. add_dim
+            for more information. default lonvar is global half degree.
         """
         lonvar = self._replace_none_by_given(lonvar,np.arange(-179.75,180,0.5))
-        lon_diminfo_value = [self.diminfo_lon['dim_name'], self.diminfo_lon['dimvar_name'], self.diminfo_lon['dimvar_longname'], 'f4', lonvar, 'degrees_east', False]
-        self.add_dim(lon_diminfo_value)
+        lon_diminfo_value = [self.diminfo_lon['dim_name'],
+                             self.diminfo_lon['dimvar_name'],
+                             self.diminfo_lon['dimvar_longname'],
+                             'f4', lonvar, 'degrees_east', False]
+        self.add_dim(lon_diminfo_value, **attr_kwargs)
         self.lonvar = lonvar
 
-    def add_dim_pft(self):
+    def add_dim_pft(self,**attr_kwargs):
         """
-        A shortcut function to write PFT dimension, cf. add_dim for more information.
+        A shortcut function to write PFT dimension, cf. add_dim
+            for more information.
         """
-        pft_diminfo_value = ['PFT', 'PFT', 'Plant functional type', 'i4', np.arange(1,14), '1', False]
-        self.add_dim(pft_diminfo_value)
+        pft_diminfo_value = ['PFT', 'PFT', 'Plant functional type',
+                              'i4', np.arange(1,14), '1', False]
+        self.add_dim(pft_diminfo_value, **attr_kwargs)
 
-    def add_dim_time(self, timevar = None, timestep='year'):
+    def add_dim_time(self, timevar = None, timestep='year', **attr_kwargs):
         """
-        A shortcut fuction to write time dimension [default dimension name: time_counter; default dimension variable name: time], cf. add_dim for more information.
+        A shortcut fuction to write time dimension
+            [default dimension name: time_counter;
+             default dimension variable name: time],
+            cf. add_dim for more information.
         """
         timevar = self._replace_none_by_given(timevar,np.arange(1,2))
         if timestep == 'year':
@@ -427,9 +449,12 @@ class NcWrite(object):
         else:
             raise ValueError("timestep {0} is not recognized!".format(timestep))
 
-        time_diminfo_value = [diminfo_time['dim_name'], diminfo_time['dimvar_name'], diminfo_time['dimvar_longname'], diminfo_time['dimvar_dtype'],
-                                  timevar, diminfo_time['dimvar_unit'], True]
-        self.add_dim(time_diminfo_value)
+        time_diminfo_value = [diminfo_time['dim_name'],
+                              diminfo_time['dimvar_name'],
+                              diminfo_time['dimvar_longname'],
+                              diminfo_time['dimvar_dtype'],
+                              timevar, diminfo_time['dimvar_unit'], True]
+        self.add_dim(time_diminfo_value,**attr_kwargs)
         self.timedim_name = diminfo_time['dim_name']
         self.timevar_name = diminfo_time['dimvar_name']
         self.timevar = timevar
@@ -501,8 +526,11 @@ class NcWrite(object):
         self.add_dim_time(np.arange(time_length)+1)
         self.add_dim_pft()
 
-    def add_var_3dim_time_lat_lon(self, varname, data, attr_copy_from=None, **attr_kwargs):
-        self.add_var((varname, (self.timedim_name, self.latdim_name, self.londim_name, ), 'f4', data), attr_copy_from=attr_copy_from, **attr_kwargs)
+    def add_var_3dim_time_lat_lon(self, varname, data, attr_copy_from=None,
+                                  **attr_kwargs):
+        self.add_var((varname,
+                     (self.timedim_name, self.latdim_name,self.londim_name, ),
+                     'f4', data), attr_copy_from=attr_copy_from, **attr_kwargs)
 
     def add_var_2dim_lat_lon(self, varname, data, attr_copy_from=None, **attr_kwargs):
         self.add_var((varname, (self.latdim_name, self.londim_name, ), 'f4', data), attr_copy_from=attr_copy_from, **attr_kwargs)
@@ -517,6 +545,8 @@ class NcWrite(object):
         self.rootgrp.setncatts(attr_dic)
 
     def close(self):
+        self.rootgrp.history = self.rootgrp.history + \
+                    '\nfile created at ' + str(datetime.datetime.today())
         self.rootgrp.close()
 
     def _construct_data_by_dim(self,numdim):
@@ -536,6 +566,25 @@ class NcWrite(object):
         else:
             raise ValueError("Strange that numdim is 1")
         return glob_data
+
+
+    def add_var_smart_ndim(self,varname,numdim,data,**attr_kwargs):
+        '''
+        Select the add_var_* method in a smart way by knowing the ndim.
+
+        Parameters:
+        -----------
+        ndim: the number of dimensions for the varname
+        '''
+        if numdim == 4:
+            self.add_var_4dim_time_pft_lat_lon(varname, data, **attr_kwargs)
+        elif numdim == 3:
+            self.add_var_3dim_time_lat_lon(varname, data, **attr_kwargs)
+        elif numdim == 2:
+            self.add_var_2dim_lat_lon(varname, data, **attr_kwargs)
+        else:
+            raise ValueError("Strange that numdim is 1")
+
 
 
     def _add_var_by_dim(self,varname,numdim,data):
@@ -599,21 +648,29 @@ class NcWrite(object):
             for key,value in glob_attr_dic.items():
                 self.rootgrp.setncattr(key,value)
 
-def nc_merge_files(outfile,input_file_list,timestep=None,time_length=None,varlist=None,latvar=None,lonvar=None,latinfo=None,loninfo=None,pft=False,
+def nc_merge_files(outfile,input_file_list,timestep=None,time_length=None,
+                   varlist=None,latvar=None,lonvar=None,
+                   latinfo=None,loninfo=None,pft=False,
                    Ncdata_latlon_dim_name=None):
     """
-    A shortcut for merging spatially a list of files. For detailed control of dimensions and varialbes, use NcWrite first, followed by add_var_from_file_list.
+    A shortcut for merging spatially a list of files. For detailed control
+        of dimensions and varialbes, use NcWrite first, followed by
+        add_var_from_file_list.
 
     Parameters:
     -----------
     timestep: 'year' or 'month', default is 'year'
     time_length: np.arange(1,time_length+1) will be the time variable value.
-    varlist: the variable list that's to be retained in merged file. default inclules all variables except the dimension variable.
-    latvar,lonvar: the lat/lon for megered data. default is 0.5 degree resolution with global coverage.
-    latinfo,loninfo: tuple containing ('lat/lon_dim_name','lat/lon_var_name','lat/lon_var_longname'); default for lat is ('lat','lat','latitude') and for lon
-        is ('lon','lon','longitude').
-    pft: if pft==True, then PFT dimenions from ORCHIDEE will be added.
-    Ncdata_latlon_dim_name: the specified lat/lon dimension names that are used when calling Ncdata.
+    varlist: the variable list that's to be retained in merged file.
+        default inclules all variables except the dimension variable.
+    latvar,lonvar: the lat/lon for megered data. default is 0.5 degree
+        resolution with global coverage.
+    latinfo,loninfo: tuple containing ('lat/lon_dim_name','lat/lon_var_name',
+        'lat/lon_var_longname'); default for lat is ('lat','lat','latitude')
+        and for lon is ('lon','lon','longitude').
+    pft: if pft==True, then PFT dimensions from ORCHIDEE will be added.
+    Ncdata_latlon_dim_name: the specified lat/lon dimension names that are
+        used when calling Ncdata.
 
     see also
     --------
@@ -621,22 +678,58 @@ def nc_merge_files(outfile,input_file_list,timestep=None,time_length=None,varlis
 
     Test
     ----
-    nc_subgrid_csv and nc_merge_files are tested against each other in the gnc_test.py.
+    nc_subgrid_csv and nc_merge_files are tested against each other
+        in the gnc_test.py.
     """
     ncfile = NcWrite(outfile)
     ncfile.add_diminfo_lon('lon','lon','longitude')
     ncfile.add_diminfo_lat('lat','lat','latitude')
-    ncfile.add_2dim_lat_lon(np.arange(89.75,-90,-0.5), np.arange(-179.75,180,0.5))
+    ncfile.add_2dim_lat_lon(np.arange(89.75,-90,-0.5),
+                            np.arange(-179.75,180,0.5))
     if pft == True:
         ncfile.add_dim_pft()
     if timestep == None:
         timestep = 'year'
     ncfile.add_dim_time(np.arange(1,1+time_length),timestep=timestep)
-    subdata_first = Ncdata(input_file_list[0],latlon_dim_name=Ncdata_latlon_dim_name)
+    subdata_first = Ncdata(input_file_list[0],
+                           latlon_dim_name=Ncdata_latlon_dim_name)
     if varlist == None:
-        varlist = pb.StringListAnotB(subdata_first.list_var(),subdata_first.dimvar_name_list)
-    ncfile.add_var_from_file_list(input_file_list,varlist,Ncdata_latlon_dim_name=Ncdata_latlon_dim_name)
+        varlist = pb.StringListAnotB(subdata_first.list_var(),
+                                     subdata_first.dimvar_name_list)
+    ncfile.add_var_from_file_list(input_file_list,varlist,
+                         Ncdata_latlon_dim_name=Ncdata_latlon_dim_name)
     ncfile.close()
+
+def _set_default_ncfile_for_write(ncfile,**kwargs):
+    '''
+    set default lat,lon,time,pft... ect for writing to nc file.
+
+    kwargs:
+    -------
+    timestep: 'year' or 'month', default is 'year'
+    time_length: np.arange(1,time_length+1) will be the time variable value,
+        default value is 1.
+    latvar,lonvar: the lat/lon for megered data. default is 0.5 degree
+        resolution with global coverage.
+    latinfo,loninfo: tuple containing ('lat/lon_dim_name','lat/lon_var_name',
+        'lat/lon_var_longname'); default for lat is ('lat','lat','latitude')
+        and for lon is ('lon','lon','longitude').
+    pft: if pft==True, then PFT dimensions from ORCHIDEE will be added.
+    '''
+
+    loninfo = kwargs.get('loninfo',('lon','lon','longitude'))
+    latinfo = kwargs.get('latinfo',('lat','lat','latitude'))
+    latvar = kwargs.get('latvar',np.arange(89.75,-90,-0.5))
+    lonvar = kwargs.get('lonvar',np.arange(-179.75,180,0.5))
+    timestep = kwargs.get('timestep','year')
+    time_length = kwargs.get('time_length',1)
+
+    ncfile.add_diminfo_lon(*loninfo)
+    ncfile.add_diminfo_lat(*latinfo)
+    ncfile.add_2dim_lat_lon(latvar,lonvar)
+    ncfile.add_dim_time(np.arange(1,1+time_length),timestep=timestep)
+    if kwargs.get('pft',False):
+        ncfile.add_dim_pft()
 
 
 
@@ -829,7 +922,7 @@ def ncfilemap(infile,latvarname=None,lonvarname=None,mapvarname=None,mapdim=None
 
 def ncdatamap(d0,d1,latvarname=None,lonvarname=None,mapvarname=None,forcedata=None,mapdim=None,agremode=None,pyfunc=None,mask=None,unit=None,title=None,\
              projection='cyl',mapbound='all',gridstep=(30,30),shift=False,cmap=None,map_threshold=None,colorbarlabel=None,levels=None,data_transform=False,ax=None,\
-             colorbardic=None):
+             colorbardic={}):
     """
     Purpose: plot map directly from d0,d1=pb.ncreadg('file.nc') object.
     Arguments:
@@ -884,7 +977,11 @@ def ncdatamap(d0,d1,latvarname=None,lonvarname=None,mapvarname=None,forcedata=No
 
     #read mapvar data and prepare for mapping
     if mapvarname==None:
-        raise ValueError('please provide a varialbe name or data')
+        if forcedata == None:
+            raise ValueError("mapvarname and forcedata both as None!")
+        else:
+            mapvar = forcedata
+        #raise ValueError('please provide a varialbe name or data')
     else:
         if isinstance(mapvarname,str):
             if forcedata==None:
@@ -953,7 +1050,8 @@ def ncdatamap(d0,d1,latvarname=None,lonvarname=None,mapvarname=None,forcedata=No
                                         colorbarlabel=colorbarlabel,levels=levels,data_transform=data_transform,ax=ax,colorbardic=colorbardic)
 
     mapvar_full=d0.__dict__[mapvarname]
-    #fuction to retreive title or unit from either inside data or by external forcing
+    #fuction to retreive title or unit from either inside data or
+    #by external forcing
     def retrieve_external_default(external_var,attribute):
         if external_var!=None:
             outvar=external_var
@@ -1316,7 +1414,7 @@ class Ncdata(object):
 
     def map(self,mapvarname=None,forcedata=None,mapdim=None,agremode=None,pyfunc=None,mask=None,unit=None,title=None,pftsum=False,\
              projection='cyl',mapbound='all',gridstep=(30,30),shift=False,cmap=None,map_threshold=None,colorbarlabel=None,levels=None,data_transform=False,ax=None,\
-             colorbardic=None):
+             colorbardic={}):
         """
         This is an implementation of ncdatamap
         """
@@ -1361,11 +1459,25 @@ class Ncdata(object):
         Parameters:
         -----------
         lon/lat: single value for 1D ndarray.
+        index keyword: lon/lat could be the indexes when index == True,
+            when making scatter plots, index is removed from the keys
+            before it's passed to scatter function.
         """
+        index = kwargs.get('index',False)
+        if index == True:
+            lon = self.lon[lon]
+            lat = self.lat[lat]
+            del kwargs['index']
+        elif index == False:
+            pass
+        else:
+            raise TypeError("keyword index must boolean type!")
+
         x,y = self.m(lon,lat)
         self.m.scatter(x,y,*args,**kwargs)
 
-    def add_Rectangle(self,(lat1,lon1),(lat2,lon2),**kwargs):
+    def add_Rectangle(self,(lat1,lon1),(lat2,lon2),index=False,
+                      facecolor='none',edgecolor='r',**kwargs):
         """
         Add a rectangle of by specifing (lat1,lon1) and (lat2,lon2).
 
@@ -1374,6 +1486,11 @@ class Ncdata(object):
         (lat1,lon1): lowerleft coordinate
         (lat2,lon2): upperright coordinate
         """
+        if index:
+            lat1,lat2 = self.lat[lat1],self.lat[lat2]
+            lon1,lon2 = self.lon[lon1],self.lon[lon2]
+        else:
+            pass
         (x1,x2),(y1,y2) = self.m([lon1,lon2],[lat1,lat2])
         rec = mat.patches.Rectangle((x1,y1),x2-x1,y2-y1,**kwargs)
         self.m.ax.add_patch(rec)
@@ -1411,6 +1528,42 @@ class Ncdata(object):
         Note: This is a direct application of gnc.find_index_by_vertex.
         """
         return find_index_by_vertex(self.lonvar, self.latvar, (vlon1,vlon2), (vlat1,vlat2))
+
+    def find_index_latlon_each_point_in_vertex(self,rlat=None,rlon=None):
+        """
+        Return a list of nested tuples, the nested tuple is like:
+            ((index_lat,index_lon),(vlat,vlon)), suppose var is of shape
+            (time,lat,lon), var[time,index_lat,index_lon] will allow
+            to retrieve var value corresponding to (vlat,vlon)
+
+        parameters:
+        -----------
+        rlat: range of lat, (valt1,vlat2)
+        rlon: range of lon, (vlon1,vlon2)
+
+        Notes:
+        ------
+        1. Suppose the rlat include m gridcells and rlon include n gridcells,
+            the result will be mXn length list and it will allow to retrieve
+            the variable values for each of the point which are within
+            the rectangle given by rlat,rlon.
+
+        See also,
+        ---------
+        Add_Single_Var_Pdata
+        """
+        rlat,rlon = self._return_defautl_latlon_range(rlat,rlon)
+        (lon_index_min, lon_index_max, lat_index_min, lat_index_max) = \
+            self.find_index_by_vertex(rlat,rlon)
+        index_latlon_tuple_list = []
+        for inlat in range(lat_index_min, lat_index_max+1):
+            for inlon in range(lon_index_min, lon_index_max+1):
+                index_latlon_tuple_list.append((
+                                    (inlat,inlon),
+                                    (self.lat[inlat],self.lon[inlon])
+                                    ))
+        return index_latlon_tuple_list
+
 
     def Get_GridValue(self,var,(vlat1,vlat2),(vlon1,vlon2), pftsum=False):
         (lon_index_min, lon_index_max, lat_index_min, lat_index_max) = find_index_by_vertex(self.lonvar, self.latvar, (vlon1,vlon2), (vlat1,vlat2))
@@ -1473,6 +1626,17 @@ class Ncdata(object):
                              .format(spa))
         return final_ncdata
 
+    def _return_defautl_latlon_range(self,rlat=None,rlon=None):
+        if rlat != None:
+            pass
+        else:
+            rlat = self.geo_limit['lat']
+        if rlon != None:
+            pass
+        else:
+            rlon = self.geo_limit['lon']
+        return (rlat,rlon)
+
     def Add_Vars_to_Pdata(self,varlist,npindex=np.s_[:],unit=True,
                           pd=None,pftsum=False,spa=None):
         """
@@ -1496,6 +1660,91 @@ class Ncdata(object):
                     pass
         return pd
 
+    def Add_Single_Var_Pdata(self,varname,
+                             rlat=None,
+                             rlon=None,
+                             pftsum=False,
+                             pd=None,npindex=np.s_[:],):
+        '''
+        This is mainly to plot for each spatial point within the rectangle
+            defined by rlat/rlon.
+
+        Parameters:
+        -----------
+        lat: (lat1,lat2), lat range.
+        lon: (lon1,lon2), lon ragne.
+
+        Notes:
+        ------
+        npindex: npindex will be applied before slicing by lat/lon index.
+            The data after npindex slicing should have len(rlat),len(rlon)
+            as the last two dimensions.
+
+        See also,
+        ---------
+        find_index_latlon_each_point_in_vertex
+        '''
+        if pd == None:
+            pd = Pdata.Pdata()
+        ydic = {}
+
+        final_ncdata = self._get_final_ncdata_by_flag(pftsum=pftsum)
+        data = final_ncdata.__dict__[varname][npindex]
+        index_latlon_tuple_list = \
+            self.find_index_latlon_each_point_in_vertex(rlat,rlon)
+        for (inlat,inlon),lat_lon in index_latlon_tuple_list:
+            ydic[str(lat_lon)] = data[...,inlat,inlon]
+        pd.add_entry_sharex_noerror_by_dic(ydic)
+        return pd
+
+    def Add_Varlist_NestedPdata(self,varlist,rlat=None,rlon=None,
+                           pftsum=False,npindex=np.s_[:]):
+        '''
+        Plot a list of variables for each point within the rectangle defined by
+            rlat/rlon. Return a dictionry of Pdata.Pdata instances, with
+            viriable names as keys.
+        '''
+        outdic = {}
+        for varname in varlist:
+            pd = self.Add_Single_Var_Pdata(varname,rlat=rlat,rlon=rlon,
+                                           pftsum=pftsum,npindex=npindex)
+            outdic[varname] = pd
+        return Pdata.NestPdata(outdic)
+
+    def Plot_Single_Var_Each_Point(self,varname,npindex=np.s_[:],
+                                   pftsum=False,**legkw):
+        '''
+        Parameters:
+        -----------
+        legkw: as in plt.legend()
+        '''
+        pd = self.Add_Single_Var_Pdata(varname,npindex=npindex,pftsum=pftsum)
+        pd.plot()
+        pd.set_legend_all(taglab=True,**legkw)
+        return pd
+
+    def Plot_Varlist_Each_Point(self,varlist,npindex=np.s_[:],
+                                pftsum=False,
+                                legtag=None,
+                                legtagseq=None,legkw={},
+                                plotkw={},
+                                **kwargs):
+        '''
+        Parameters:
+        -----------
+        kwargs: for Pdata.NestPdata.plot_split_parent_tag
+        legkw: for plt.legend
+        plotkw: for plt.plot
+        '''
+        npd = self.Add_Varlist_NestedPdata(varlist)
+        npd.plot_split_parent_tag(plotkw=plotkw,
+                                  legtag=legtag,
+                                  legtagseq=legtagseq,
+                                  legkw=legkw,
+                                  **kwargs)
+        pd0 = npd.child_pdata[varlist[0]]
+        #pd0.set_legend_all(taglab=True,**legkw)
+
     def Add_Vars_to_Mdata(self,varlist,npindex=np.s_[:],
                           md=None,pftsum=False,spa=None):
         '''
@@ -1513,12 +1762,16 @@ class Ncdata(object):
             md.add_lat_lon(tag=varname,lat=self.lat,lon=self.lon)
         return md
 
-    def Add_Single_Var_Mdata(self,varname,taglist=None,md=None,
+
+    def Add_Single_Var_Mdata(self,varname=None,forcedata=None,
+                             taglist=None,md=None,
                              pftsum=False,spa=None,npindex_list=None):
         '''
         Add single var to Mdata to explore the difference among
             different dimensions.
 
+        TODO: allow default taglist and add a new key axis to allow select
+        the dimension rather than only the first dimension.
         Parameters:
         -----------
         varname: the final data used for 'varname' should be of dim
@@ -1531,7 +1784,11 @@ class Ncdata(object):
             of first dimension of the array.
         '''
         final_ncdata = self._get_final_ncdata_by_flag(pftsum=pftsum,spa=spa)
-        maparray = final_ncdata.__dict__[varname]
+        if forcedata == None:
+            maparray = final_ncdata.__dict__[varname]
+        else:
+            maparray = forcedata
+
         if md==None:
             md=Pdata.Mdata()
         if npindex_list == None:
@@ -1615,14 +1872,40 @@ class Ncdata(object):
                 raise TypeError("dimred_func must be callable")
         return regdic
 
-    def Plot_Vars(self,ax=None,varlist=None,npindex=np.s_[:],unit=True,pftsum=False,spa=None,**kwargs):
-        pd=self.Add_Vars_to_Pdata(varlist=varlist,npindex=npindex,unit=unit,pftsum=pftsum,spa=spa)
-        if ax==None:
-            fig,ax=g.Create_1Axes()
+    def Plot_Vars(self,ax=None,varlist=None,npindex=np.s_[:],
+                  unit=True,pftsum=False,spa=None,
+                  split=False,splitkw={},
+                  legkw={},
+                  **plotkw):
+        '''
+        Plot for varlist as pd.
+        '''
+
+        pd=self.Add_Vars_to_Pdata(varlist=varlist,npindex=npindex,unit=unit,
+                                  pftsum=pftsum,spa=spa)
+        if not split:
+            pd.plot(axes=ax,**plotkw)
+            pd.set_legend_all(taglab=True,**legkw)
         else:
-            pass
-        pd.plot(ax,**kwargs)
+            pd.plot_split_axes(self,plotkw=plotkw,**splitkw)
         return pd
+
+
+def nc_get_var_value_grid(ncfile,varname,(vlat1,vlat2),(vlon1,vlon2),
+                          pftsum=False):
+    '''
+    simple way to quickly retrieve grid value
+    '''
+    d = Ncdata(ncfile)
+    return d.Get_GridValue(varname,(vlat1,vlat2),(vlon1,vlon2),
+                    pftsum=pftsum)
+
+def nc_get_var_value_point(ncfile,varname,(vlat,vlon)):
+    '''
+    simple way to quickly retrieve grid value
+    '''
+    d = Ncdata(ncfile)
+    return d.Get_PointValue(self,varname,(vlat,vlon))
 
 
 
@@ -1729,6 +2012,7 @@ def compare_nc_file(file1,file2,varlist,npindex=np.s_[:]):
     """
     d1 = Ncdata(file1)
     d2 = Ncdata(file2)
+    reslist = []
     if isinstance(npindex,list):
         if len(npindex) != len(varlist):
             raise ValueError("npindex is provided as list but length not equal to varlist!")
@@ -1747,9 +2031,10 @@ def compare_nc_file(file1,file2,varlist,npindex=np.s_[:]):
     for varname,comindex in zip(varlist,npindex_final):
         if np.ma.allclose(d1.d1.__dict__[varname][comindex[0]],d2.d1.__dict__[varname][comindex[1]]):
             print "variable --{0}-- equal".format(varname)
-            return True
+            reslist.append(True)
         else:
-            return False
+            print "variable --{0}-- NOT equal".format(varname)
+            reslist.append(False)
 
 def arithmetic_ncfiles_var(filelist,varlist,func,npindex=np.s_[:]):
     """
@@ -1780,6 +2065,74 @@ def arithmetic_ncfiles_var(filelist,varlist,func,npindex=np.s_[:]):
     data_list = [Ncdata(filename) for filename in filelist]
     ndarray_list = [d.d1.__dict__[varname][comindex] for d,varname,comindex in zip(data_list,varlist,npindex_final)]
     return func(*ndarray_list)
+
+def nc_add_Mdata_mulitfile(filelist,taglist,varlist,npindex=np.s_[:]):
+    '''
+    Simple wrapper of Pdata.Mdata.add_entry_share_latlon_bydic.
+
+    Parameters:
+    -----------
+    varlist: varlist length should be equal to filelist.
+    Notes:
+    ------
+    All the input nc files should have the same geo_limit
+    '''
+    if isinstance(varlist,list):
+        pass
+    elif isinstance(varlist,str):
+        varlist = [varlist]*len(filelist)
+
+    ydic = {}
+    d0 = Ncdata(filelist[0])
+    for filename,tag,varname in zip(filelist,taglist,varlist):
+        dt = Ncdata(filename)
+        ydic[tag] = dt.d1.__dict__[varname]
+    md = Pdata.Mdata()
+    md.add_entry_share_latlon_bydic(ydic, lat=d0.lat, lon=d0.lon)
+    return md
+
+
+@append_doc_of(_set_default_ncfile_for_write)
+def nc_creat_ncfile_by_ncfiles(outfile,varname,input_file_list,input_varlist,
+                               npindex=np.s_[:],
+                               pyfunc=None,
+                               Ncdata_latlon_dim_name=None,
+                               attr_kwargs={},
+                               **kwargs):
+    '''
+    Write ncfile by calculating from variables of other nc file.
+
+    Parameters:
+    -----------
+    varname: the varname for writting into nc file.
+    input_file_list: input file list.
+    input_varlist: varname list from input files, broadcast when necessary.
+    npindex: could be a list otherwise broadcast.
+    Ncdata_latlon_dim_name: used in Ncdata function
+    attr_kwargs: used in Ncwrite.add_var
+
+    Notes:
+    ------
+    This is intended to write only ONE variable for the nc file.
+
+    '''
+    ncfile = NcWrite(outfile)
+    _set_default_ncfile_for_write(ncfile,**kwargs)
+    if isinstance(input_varlist,str):
+        input_varlist = [input_varlist]*len(input_file_list)
+    if not isinstance(npindex,list):
+        npindex = [npindex]*len(input_file_list)
+
+    data_list = [Ncdata(filename,latlon_dim_name=Ncdata_latlon_dim_name) for
+               filename in input_file_list]
+    ndarray_list = [d.d1.__dict__[var][comindex] for d,var,comindex
+                    in zip(data_list,input_varlist,npindex)]
+    ndim = len(ncfile.dimensions)
+    data = pyfunc(*ndarray_list)
+    ncfile.add_var_smart_ndim(varname,ndim,data,**attr_kwargs)
+    ncfile.close()
+
+
 
 def test_nc_subgrid():
     #test 3dim nc data
