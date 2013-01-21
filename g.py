@@ -16,6 +16,8 @@ import netCDF4 as nc
 from matplotlib.backends.backend_pdf import PdfPages
 import pb
 import rpy2
+import copy
+
 
 '''
     1. Many auxiliary plot functions are defined.
@@ -98,6 +100,15 @@ bluecmp=mat.colors.LinearSegmentedColormap.from_list('bluecmp',['#ADD6FF','#3366
 def blue_level(levnum):
     a=bluecmp(np.linspace(0,1,num=levnum,endpoint=True))
     return a
+
+
+def extract_color_list_cm(cmap,levnum=10):
+    if not isinstance(cmap, mat.colors.Colormap):
+        raise TypeError("provided colormap is not mat.colors.Colormap object!")
+    else:
+        rgba_array = cmap(np.linspace(0,1,num=levnum,endpoint=True))
+        return rgba_array[...,0:3]
+
 
 def cm_extract(cmap,(start,end),levnum=10,levels=None):
     """
@@ -1393,14 +1404,46 @@ class ProxyLegend(object):
     """
     Tags are used as labels for proxy legend.
     """
-    def __init__(self,tags=None):
-        self.data={}
-        if tags==None:
-            self.tags=[]
-        elif isinstance(tags,list):
-            self.tags=tags
+    def __init__(self,newdata=None):
+        '''
+        newdata should be a dict with (tag,handler) pairs.
+        '''
+        if newdata == None:
+            self.data = {}
         else:
-            raise ValueError("Can only provide list to tags")
+            self.data = copy.copy(newdata)
+
+        if self.data == {}:
+            self.tags = []
+        else:
+            self.tags = self.data.keys()
+
+    @classmethod
+    def merge_pleg(cls,*pleglist):
+        '''
+        Notes:
+        ------
+        merge_pleg will keep the sequence of tags for each pleg and
+            and the sequence of pleglist.
+        '''
+        data = {}
+        tags = []
+        for pleg in pleglist:
+            data.update(pleg.data)
+            tags.extend(pleg.tags)
+        plegnew = ProxyLegend(data)
+        plegnew.set_tag_order(tags)
+        return plegnew
+
+    def set_tag_order(self,tagseq=None):
+        """
+        Set tag order and this order will be kept throughout all the class
+        method when default taglist is used.
+        """
+        if sorted(self.tags) == sorted(tagseq):
+            self.tags = tagseq[:]
+        else:
+            raise ValueError('ordered tag list not equal to present taglist')
 
     def add_line_by_tag(self,tag,**kwargs):
         line=mat.lines.Line2D([],[],**kwargs)
@@ -1412,7 +1455,9 @@ class ProxyLegend(object):
 
     def add_rec_by_tag(self,tag,**kwargs):
         """
-        Add a mat.patches.Rectangle instance; but notice setting the edgecolor as 'none' will not lead to a none edgecolor in the legend handle.
+        Add a mat.patches.Rectangle instance; but notice setting the
+            edgecolor as 'none' will not lead to a none edgecolor
+            in the legend handle.
         """
         rect=mat.patches.Rectangle((0, 0), 1, 1,**kwargs)
         self.data[tag]=rect
@@ -1421,8 +1466,12 @@ class ProxyLegend(object):
         else:
             self.tags.append(tag)
 
-    def add_scatter_by_tag(self, tag, s=20, c='k', marker='o', cmap=None, norm=None,vmin=None, vmax=None, alpha=None, linewidths=None,verts=None, **kwargs):
-        scatter = mat.scatter([],[],s=s, c='k', marker='o', cmap=cmap, norm=norm,vmin=vmin, vmax=vmax, alpha=alpha, linewidths=linewidths, verts=verts, **kwargs)
+    def add_scatter_by_tag(self, tag, s=20, c='k', marker='o', cmap=None,
+                           norm=None,vmin=None, vmax=None, alpha=None,
+                           linewidths=None,verts=None, **kwargs):
+        scatter = mat.scatter([],[],s=s, c='k', marker='o', cmap=cmap,
+                              norm=norm,vmin=vmin, vmax=vmax, alpha=alpha,
+                              linewidths=linewidths, verts=verts, **kwargs)
         self.data[tag] = scatter
         if tag in self.tags:
             pass
@@ -1437,20 +1486,26 @@ class ProxyLegend(object):
             self.tags = self.tags + proxy_dic.keys()
 
     def copy(self):
-        proleg_new = ProxyLegend(self.tags)
-        proleg_new.data.update(self.data)
+        proleg_new = ProxyLegend(self.data)
         return proleg_new
+
+    @staticmethod
+    def _check_void_handle_label(label):
+        if label == '':
+            return True
+        elif label[0] == '_':
+            return True
 
     def _get_handle_label(self,tagseq=None):
         handle_list=[]
         label_list=[]
         if tagseq==None:
-            tagseq=self.data.keys()
+            tagseq=self.tags
         for tag in tagseq:
             handle=self.data[tag]
             handle_list.append(handle)
             label=handle.get_label()
-            if label=='':
+            if ProxyLegend._check_void_handle_label(label):
                 label_list.append(tag)
             else:
                 label_list.append(label)
