@@ -655,10 +655,8 @@ def contourfmap(ax,lat,lon,indata,projection='cyl',mapbound='all',
                                            forcelabel=forcelabel,
                                            plotlev=plotlev,
                                            plotlab=plotlab)
-    print plotlev
-    print ticks,labels
-    cbar.set_ticks(ticks)
-    cbar.set_ticklabels(labels)
+        cbar.set_ticks(ticks)
+        cbar.set_ticklabels(labels)
     #return
     if return_lev_lab==True:
         return m,cbar,plotlev,plotlab
@@ -669,7 +667,7 @@ def contourfmap2(lat,lon,indata,projection='cyl',mapbound='all',
                  gridstep=(30,30),shift=False,cmap=None,
                  map_threshold=None,colorbarlabel=None,
                  levels=None,data_transform=False,
-                 ax=None,colorbardic=None):
+                 ax=None,colorbardic={}):
     """
     contourfmap2 is a wrapper of contourfmap. NO need to set up
         a figure and axes before drawing map, return fig,ax,m,cbar.
