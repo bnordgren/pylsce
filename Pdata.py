@@ -21,7 +21,7 @@ import g
 import exio
 import copy as copy
 import bmap
-
+import Pdata_test as Ptest
 
 
 def gsetp(*artist,**kwargs):
@@ -230,19 +230,19 @@ def _build_list_of_axes_by_num(num,force_axs=None,ncols=None,
                                column_major=False, **kwargs):
     if force_axs==None:
         if ncols == 1:
-            fig,axs=plt.subplots(nrows=num, ncols=1, **kwargs)
+            nrows=num
         else:
             if num%ncols == 0:
                 nrows=num/ncols
             else:
                 nrows=num/ncols+1
-            fig,axt=plt.subplots(nrows=nrows, ncols=ncols,
+        fig,axt=plt.subplots(nrows=nrows, ncols=ncols,
                                  sharex=sharex, sharey=sharey,
                                  **kwargs)
-            if column_major == False:
-                axs=axt.flatten()[0:num]
-            else:
-                axs = axt.flatten(order='F')[0:num]
+        if column_major == False:
+            axs=axt.flatten()[0:num]
+        else:
+            axs = axt.flatten(order='F')[0:num]
     else:
         if num<=len(force_axs):
             axs=force_axs[0:num]
@@ -285,7 +285,7 @@ def _treat_axes_dict(axdic,tagpos='ul',unit=None,xlim=None):
         g.Set_AxText(axt,tag,tagpos)
         if unit !=None :
             if isinstance(unit,str):
-                print "forced unit is used"
+                #print "forced unit is used"
                 axt.set_ylabel(unit)
             else:
                 raise ValueError("Strange unit")
@@ -356,6 +356,8 @@ def _creat_dict_of_tagaxes_by_tagseq_g(**kwargs):
                                          sharex=sharex, sharey=sharey,
                                          column_major=column_major,
                                          **subkw)
+        if len(tag_list) == 1:
+            axs = [axs]
         axdic = dict(zip(tag_list,axs))
 
     #print 'default_tagpos before',default_tagpos
@@ -367,7 +369,7 @@ def _creat_dict_of_tagaxes_by_tagseq_g(**kwargs):
         g.Set_AxText(axt,tag,tagpos)
         if unit !=None :
             if isinstance(unit,str):
-                print "forced unit is used"
+                #print "forced unit is used"
                 axt.set_ylabel(unit)
             else:
                 raise ValueError("Strange unit")
@@ -439,6 +441,8 @@ class Pdata(object):
     _plot_attr_default.update(_error_attr_default)
     _plot_attr_default.update(_scatter_attr_default)
     _plot_attr_default.update(_bar_attr_default)
+
+    _default_plottype_list = ['Line2D','Scatter_PathC','Bar_Container']
 
     #TESTED
     def _plot_attr_keylist_check(self):
@@ -733,6 +737,8 @@ class Pdata(object):
                 else:
                     raise ValueError("""func should be a dictionary
                         by using ('x'/'y', x_func/y_func) pairs.""")
+            elif axis in pdtemp.data[tag]:
+                pdtemp.data[tag][axis]=func(pdtemp.data[tag][axis])
             else:
                 raise ValueError("Unknown axis value")
 
@@ -1497,6 +1503,7 @@ class Pdata(object):
             return artist[0].get_axes()
 
     def set_legend_scatter(self,axes=None,taglab=False,tag_seq=None,**kwargs):
+        print "DeprecatingWarning: set_legend_scatter"
         tag_seq = _replace_none_by_given(tag_seq,self._taglist)
         handler_list,label_list=self._get_handler_label_by_artistdic(self.Scatter_PathC,taglab=taglab,tag_seq=tag_seq)
         if axes==None:
@@ -1505,6 +1512,7 @@ class Pdata(object):
         return self.LegendScatter
 
     def set_legend_line(self,axes=None,taglab=False,tag_seq=None,**kwargs):
+        print "DeprecatingWarning: set_legend_line"
         handler_list,label_list=self._get_handler_label_by_artistdic(self.Line2D,taglab=taglab,tag_seq=tag_seq)
         if axes==None:
             axes=self._get_axes_by_artistdic(self.Line2D)
@@ -1512,6 +1520,7 @@ class Pdata(object):
         return self.LegendLine
 
     def set_legend_bar(self,axes=None,taglab=False,tag_seq=None,**kwargs):
+        print "DeprecatingWarning: set_legend_bar"
         handler_list,label_list=self._get_handler_label_by_artistdic(self.Bar_Container,taglab=taglab,tag_seq=tag_seq)
         if axes==None:
             axes=self._get_axes_by_artistdic(self.Bar_Container)
@@ -1523,25 +1532,47 @@ class Pdata(object):
             tag_value['y'] = []
 
 
-    def set_legend_all(self,axes=None,taglab=False,tag_seq=None,**kwargs):
+    def get_handle_label(self,plottype='all',taglab=False,tag_seq=None):
         handler_list=[]
         label_list=[]
-        attr_list=['Scatter_PathC','Line2D','Bar_Container']
-        artdic_list=[self.__getattribute__(attr) for attr in attr_list
-                     if hasattr(self,attr)]
-        for artdic in artdic_list:
+        artist_dic = self._get_artist_dic_by_plottype(plottype)
+        if isinstance(artist_dic,dict):
+            artist_dic_list = [artist_dic]
+        else:
+            artist_dic_list = artist_dic
+
+        for artdic in artist_dic_list:
             try:
                 sub_hand_list,sub_lab_list=\
                     self._get_handler_label_by_artistdic(artdic,
                         taglab=taglab,tag_seq=tag_seq)
-                handler_list.append(sub_hand_list)
-                label_list.append(sub_lab_list)
+                handler_list.extend(sub_hand_list)
+                label_list.extend(sub_lab_list)
             except AttributeError:
                 pass
+        return (handler_list,label_list)
+
+    def get_proleg(self,plottype='all',taglab=True,tag_seq=None):
+        (handler_list,label_list) = self.get_handle_label(plottype=plottype,
+                    taglab=taglab,tag_seq=tag_seq)
+        pleg = g.ProxyLegend(dict(zip(label_list,handler_list)))
+        pleg.set_tag_order(label_list)
+        return pleg
+
+    def set_legend(self,plottype='all',axes=None,taglab=True,
+                       tag_seq=None,**kwargs):
+        (handler_list,label_list) = self.get_handle_label(plottype=plottype,
+                    taglab=taglab,tag_seq=tag_seq)
         if axes==None:
             axes=handler_list[0][0].get_axes()
-        self.LegendAll=axes.legend(iteflat(handler_list),
-                                   iteflat(label_list),**kwargs)
+        self.LegendAll=axes.legend(handler_list,
+                                   label_list,**kwargs)
+
+    def set_legend_all(axes=None,taglab=False,
+                       tag_seq=None,**kwargs):
+        print "DeprecatingWarning: set_legend_all"
+        self.set_legend('all',axes=axes,taglab=taglab,
+                        tag_seq=tag_seq,**kwargs)
 
     def set_legend_select(self,axes=None,taglab=False,tag_seq=None,**kwargs):
         pass
@@ -1573,6 +1604,7 @@ class Pdata(object):
             its tat key.  Note the {tag:attr_value}.keys() must be exactly
             the same as in artist_dic.keys().
         """
+        print "DeprecatingWarning: setp_by_tag"
         for attr_name,tag_attr_value_dic in nested_attr_tag_value_dic.items():
             if not isinstance(tag_attr_value_dic,dict):
                 for tag,art in artist_dic.items():
@@ -1595,21 +1627,45 @@ class Pdata(object):
             for tag,attr_value in final_dic.items():
                 plt.setp(artist_dic[tag],**{attr_name:attr_value})
 
-    def setp_tag(self,plottype,tagkw=False,**nested_attr_tag_value_dic):
+    def _get_artist_dic_by_plottype(self,plottype):
+        '''
+        Notes:
+        ------
+        return a list if plottype == 'all'
+        '''
+        print "plottype:{0}".format(plottype)
         if plottype == 'line':
             artist_dic = self.Line2D
-        elif plottype == 'sca' or 'scatter':
+        elif plottype in ['sca','scatter']:
             artist_dic = self.Scatter_PathC
         elif plottype == 'bar':
             artist_dic = self.Bar_Container
+        elif plottype == 'all':
+            artist_dic = []
+            artist_dic_list = []
+            for plotatt in self._default_plottype_list:
+                try:
+                    artist_dic.append(self.__dict__[plotatt])
+                except KeyError:
+                    pass
         else:
             raise ValueError('''plottype not present! please add new one''')
+        return artist_dic
 
-        self._setp_by_tag(artist_dic,tagkw=tagkw,**nested_attr_tag_value_dic)
+
+    def setp_tag(self,plottype='line',tagkw=False,**nested_attr_tag_value_dic):
+        artist_dic = self._get_artist_dic_by_plottype(plottype)
+        if isinstance(artist_dic,dict):
+            self._setp_by_tag(artist_dic,tagkw=tagkw,**nested_attr_tag_value_dic)
+        else:
+            for sub_artist_dic in artist_dic:
+                self._setp_by_tag(sub_artist_dic,tagkw=tagkw,**nested_attr_tag_value_dic)
+
+
 
     def plot_split_axes(self,plotkw={},**kwargs):
         '''
-        Plot by using parent tags as label for subplots.
+        Plot for each tag a separate subplot.
 
         Parameters:
         -----------
@@ -1733,7 +1789,23 @@ class Pdata(object):
         """
         pb.pfdump(self.data,filename)
 
+    @classmethod
+    def merge(cls,*pdlist):
+        pdnew=Pdata()
+        for pd in pdlist:
+            pdnew.data.update(pd.data)
+        return pdnew
+
+    def duplicate_tag(self,oldtag,newtag):
+        self.add_tag(tag=newtag)
+        self.data[newtag] = self.data[oldtag].copy()
+
+    def drop_tag(self,tag):
+        del self.data[tag]
+        self._taglist.remove(tag)
+
 def pmerge(*pdlist):
+    print "Deprecating Warning!"
     pdnew=Pdata()
     for pd in pdlist:
         pdnew.data.update(pd.data)
@@ -1743,6 +1815,7 @@ def open(pdfilename):
     """
     create a pdata from "*.pd" file
     """
+    print "DeprecatingWarning!"
     pdata=Pdata()
     data=pb.pfload(pdfilename)
     pdata.data=data
@@ -1878,12 +1951,17 @@ class NestPdata(object):
 
 
 
-    def plot_split_parent_tag(self,plotkw={},**kwargs):
+    def plot_split_parent_tag(self,plotkw={},legtag=None,
+                              legtagseq=None,legkw={},
+                              **kwargs):
         """
         Plot by using parent tags as label for subplots.
 
         Parameters:
         -----------
+        legtag: the child tag for which legend will be shown, False to supress.
+        legtagseq: the child tag sequence for the legtag.
+        legkw: used in plt.legend for the legtag
         plotkw: the keyword used in plt.plot function.
         kwargs:
             force_axs: force the axes.
@@ -1899,11 +1977,17 @@ class NestPdata(object):
         """
         axdic = _creat_dict_of_tagaxes_by_tagseq_g(
                             default_tagseq=self.parent_tags, **kwargs)
-
         for tag,axt in axdic.items():
             pd_temp = self.child_pdata[tag]
             pd_temp.plot(axt,**plotkw)
 
+        if legtag == False:
+            pass
+        else:
+            legtag = _replace_none_by_given(legtag,self.parent_tags[0])
+            self.child_pdata[legtag].set_legend_all(taglab=True,
+                                                tag_seq=legtagseq,
+                                                **legkw)
         self.axes = axdic
         self.axdic = axdic
 
@@ -1967,10 +2051,63 @@ class NestPdata(object):
         else:
             raise ValueError("unknown mode.")
 
+    @classmethod
+    def merge_npd(cls,*npdlist,**kwargs):
+        '''
+        Merge multiple NestPdata by either 'parent' or 'child'
+
+        Parameters:
+        -----------
+        kwargs: mode='parent' or 'child'
+        '''
+        mode = kwargs.get('mode','parent')
+        child_tags = npdlist[0].child_tags
+        npddic = {}
+        if mode == 'parent':
+            for npd in npdlist:
+                if sorted(child_tags) != sorted(npd.child_tags):
+                    raise ValueError('''child_tags not equal''')
+                else:
+                    npddic.update(npd.child_pdata)
+            npd_merge = NestPdata(npddic)
+        elif mode == 'child':
+            new_npdlist = []
+            for npd in npdlist:
+                npd.permuate_tag()
+                new_npdlist.append(npd)
+            npd_merge = merge_npd(new_npdlist,mode='parent')
+            npd_merge.permuate_tag()
+        return npd_merge
+
     def setp_tag(self,plottype,tagkw=False,**nested_attr_tag_value_dic):
+        '''
+        Example: npd.setp_tag('line',lw=dict(wrong=1),alpha=dict(wrong=0.6),
+                               color=dict(right='m'),zorder=dict(right=4))
+        right and wrong are child_tags.
+        '''
         for pdtemp in self.child_pdata.values():
             pdtemp.setp_tag(plottype, tagkw=tagkw,
                            **nested_attr_tag_value_dic)
+
+    def set_legend_all(self,legtag=None,legtagseq=None,**kwargs):
+        '''
+        Set legend using one of the child_pdata
+        '''
+        legtag = _replace_none_by_given(legtag,self.parent_tags[0])
+        self.child_pdata[legtag].set_legend_all(taglab=True,
+                                            tag_seq=legtagseq,**kwargs)
+
+    def to_npd(self,filename):
+        if not filename.endswith('.npd'):
+            raise ValueError('''filename not end with .npd''')
+        else:
+            pb.pfdump(self.child_pdata,filename)
+
+    @classmethod
+    def open_npd(cls,filename):
+        data = pb.pfload(filename)
+        return NestPdata(data)
+
 
 
 class Mdata(Pdata):
@@ -2089,6 +2226,7 @@ class Mdata(Pdata):
         axdic = _creat_dict_of_tagaxes_by_tagseq_g(
                         default_tagseq=self._taglist,
                         default_tagpos='ouc',
+                        sharex=True, sharey=True,
                         **kwargs)
         mapconfdic={}
         for tag,axt in axdic.items():
