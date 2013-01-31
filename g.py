@@ -1410,8 +1410,12 @@ class ProxyLegend(object):
         '''
         if newdata == None:
             self.data = {}
-        else:
+        elif isinstance(newdata,list):
+            self.data = copy.copy(dict.fromkeys(newdata))
+        elif isinstance(newdata,dict):
             self.data = copy.copy(newdata)
+        else:
+            raise TypeError("only list and dict accepted!")
 
         if self.data == {}:
             self.tags = []
