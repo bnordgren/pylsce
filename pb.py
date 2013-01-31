@@ -471,12 +471,36 @@ def List2Array(al):
     return list2array(al)
 
 class calendar(object):
+    leap=[31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    noleap=[31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    month=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+    DayMonleap=dict(zip(month,leap))
+    DayMonnoleap=dict(zip(month,noleap))
+
+
     def __init__(self):
-        self.leap=[31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-        self.noleap=[31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-        self.month=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-        self.DayMonleap=dict(zip(self.month,self.leap))
-        self.DayMonnoleap=dict(zip(self.month,self.noleap))
+        pass
+
+#    def getdoy2((mon,day),leap=False):
+#        leap=[31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+#        noleap=[31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+#        if leap:
+#            doy=np.sum(np.array(leap[0:mon-1]))+day
+#        else:
+#            doy=np.sum(np.array(noleap[0:mon-1]))+day
+#        return int(doy)
+
+#    doy_begin_month_noleap = []
+#    doy_end_month_noleap = []
+#    doy_begin_month_leap = []
+#    doy_end_month_leap = []
+#    for mon in range(1,13):
+#        doy_begin_month_noleap.append(getdoy2((mon,1)))
+#        doy_end_month_noleap.append(getdoy2((mon+1,1))-1)
+#        doy_begin_month_leap.append(getdoy2((mon,1),True))
+#        doy_end_month_leap.append(getdoy2((mon+1,1),True)-1)
+#    index_first_day_month_noleap = np.array(doy_begin_month_noleap)-1
+#    index_first_day_month_leap = np.array(doy_begin_month_leap)-1
 
     def getdoy(self,(mon,day),leap=False):
         """
@@ -487,11 +511,13 @@ class calendar(object):
         else:
             doy=np.sum(np.array(self.noleap[0:mon-1]))+day
         return int(doy)
+
     def isleap(self,year):
         if year%4==0:
             return True
         else:
             return False
+
 
     def get_month_doy(self):
         """
@@ -506,7 +532,10 @@ class calendar(object):
             self.doy_end_month_noleap.append(self.getdoy((mon+1,1))-1)
             self.doy_begin_month_leap.append(self.getdoy((mon,1),True))
             self.doy_end_month_leap.append(self.getdoy((mon+1,1),True)-1)
-        self.index_first_day_month = np.array(self.doy_begin_month_noleap)-1
+        self.index_first_day_month_noleap = \
+            np.array(self.doy_begin_month_noleap)-1
+        self.index_first_day_month_leap = \
+            np.array(self.doy_begin_month_leap)-1
 
 def MaskArrayByNan(array):
     """
