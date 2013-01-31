@@ -452,13 +452,13 @@ class Pdata(object):
 
 
 
-    def __init__(self,newdata=None):
+    def __init__(self,data=None):
         self._plot_attr_keylist_check()
 
-        if newdata == None:
+        if data == None:
             self.data = {}
         else:
-            self.data = copy.deepcopy(newdata)
+            self.data = copy.deepcopy(data)
 
         if self.data == {}:
             self._taglist = []
@@ -525,6 +525,23 @@ class Pdata(object):
                 self.addx(x,tag)
         self.addy(y,tag)
 
+    @classmethod
+    def from_ndarray(cls,arr,tagaxis=0,taglist=None):
+        if np.ndim(arr) != 2:
+            raise ValueError('''array ndim is {0}, only 2 is valid'''.
+                                format(arr.ndim))
+        if tagaxis == 0:
+            datalist = [arr[i] for i in range(arr.shape[0])]
+        elif tagaxis == 1:
+            datalist = [arr[:,i] for i in range(arr.shape[1])]
+        else:
+            raise ValueError("unknown tagaxis!")
+        taglist = _replace_none_by_given(taglist,np.arange(len(datalist))+1)
+        pd = Pdata()
+        pd.add_entry_sharex_noerror_by_dic(dict(zip(taglist,datalist)))
+        pd.set_tag_order(taglist)
+        return pd
+
     def add_entry_singleYerror(self,x,y,yerr,tag):
         self.add_tag(tag)
         self.addx(x,tag)
@@ -566,7 +583,7 @@ class Pdata(object):
             self.add_entry_noerror(x=x,y=ydata,tag=tag)
 
     def add_entry_noerror_by_dic_default_xindex(self,ydic):
-        print "Warning! this will be deprecated!"
+        print "DeprecatingWarning! add_entry_noerror_by_dic_default_xindex"
         for tag,ydata in ydic.items():
             x=np.arange(len(ydata))+1
             self.add_entry_noerror(x=x,y=ydata,tag=tag)
@@ -1101,7 +1118,7 @@ class Pdata(object):
                             linewidths=None, faceted=True,
                             verts=None, **remain_kwargs)
 
-    def scatter(self,axes=None,erase=True,**kwargs):
+    def scatter(self,axes=None,erase=True,legend=True,**kwargs):
         """
         Make a scatter plot.
         Parameters:
@@ -1127,9 +1144,11 @@ class Pdata(object):
                 tag_kwargs.update(tag_plot_attr_dic)
                 #print 'tag & tag_kwargs',tag,tag_kwargs
                 self.Scatter_PathC[tag]=self._gscatter(axes,tag_data['x'],tag_data['y'],**tag_kwargs)
+        if legend == True:
+            self.set_legend('scatter')
         return self.Scatter_PathC
 
-    def plot(self,axes=None,**kwargs):
+    def plot(self,axes=None,legend=True,**kwargs):
         axes=_replace_none_axes(axes)
         if hasattr(self,'Line2D') and self.Line2D!={}:
             self.remove_line_by_tag()
@@ -1137,6 +1156,8 @@ class Pdata(object):
         for tag,tag_data in self.data.items():
             line2D=axes.plot(tag_data['x'],tag_data['y'],label=tag_data['label'],**kwargs)
             self.Line2D[tag]=line2D[0]
+        if legend == True:
+            self.set_legend('line')
         return self.Line2D
 
     def plot_stackline(self,axes=None,tagseq=None,colors=None,
@@ -1218,8 +1239,8 @@ class Pdata(object):
 
             proleg.add_rec_by_tag(focus_tag,
                                   color=colors_remain[index],**fillkw)
-            if index == len(tagseq)-2:
-                axes.set_xlim(focus_data['x'][0],focus_data['x'][-1])
+            #if index == len(tagseq)-2:
+                #axes.set_xlim(focus_data['x'][0],focus_data['x'][-1])
 
         if legend:
             proleg.create_legend(axes,tagseq=leg_tagseq[::-1],**legdic)
@@ -1564,11 +1585,11 @@ class Pdata(object):
         (handler_list,label_list) = self.get_handle_label(plottype=plottype,
                     taglab=taglab,tag_seq=tag_seq)
         if axes==None:
-            axes=handler_list[0][0].get_axes()
+            axes=handler_list[0].get_axes()
         self.LegendAll=axes.legend(handler_list,
                                    label_list,**kwargs)
 
-    def set_legend_all(axes=None,taglab=False,
+    def set_legend_all(self,axes=None,taglab=False,
                        tag_seq=None,**kwargs):
         print "DeprecatingWarning: set_legend_all"
         self.set_legend('all',axes=axes,taglab=taglab,
@@ -1633,7 +1654,7 @@ class Pdata(object):
         ------
         return a list if plottype == 'all'
         '''
-        print "plottype:{0}".format(plottype)
+        #print "plottype:{0}".format(plottype)
         if plottype == 'line':
             artist_dic = self.Line2D
         elif plottype in ['sca','scatter']:
@@ -1906,6 +1927,7 @@ def from_DataFrame(df,df_func=None,index_func=None,force_sharex=None):
             pd.add_entry_sharex_noerror_by_dic(df,x=index_func(df.index))
     else:
         pd.add_entry_sharex_noerror_by_dic(df,x=force_sharex)
+    pd.set_tag_order(list(df.columns))
     return pd
 
 
@@ -1976,10 +1998,12 @@ class NestPdata(object):
             plotkw: the keyword used in plt.plot function.
         """
         axdic = _creat_dict_of_tagaxes_by_tagseq_g(
-                            default_tagseq=self.parent_tags, **kwargs)
+                            default_tagseq=self.parent_tags,
+                            default_tagpos=(0.02,0.83),
+                            **kwargs)
         for tag,axt in axdic.items():
             pd_temp = self.child_pdata[tag]
-            pd_temp.plot(axt,**plotkw)
+            pd_temp.plot(axt,legend=False,**plotkw)
 
         if legtag == False:
             pass
