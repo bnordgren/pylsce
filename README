@@ -1,1 +1,9 @@
 This is the python package developed at LSCE by Chao Yue.
+
+Pdata: provide easy matplotlib wrapper allowing quick plotting.
+gnc: extra NetCDF file handling functions based on netCDF4 package.
+bmap: extra map making functions for NetCDF4 files
+mathex: extra math functions
+exio: extra input-output interfaces for various file/data formats
+g: extra plot supporting functions
+pb: python basic general small functions
