@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+import pb
+
 #PFTs in ORCHIDEE
 #    1 - Bare soil
 #    2 - tropical  broad-leaved evergreen
@@ -31,3 +33,17 @@ pftdic= \
 12: 'C3 agriculture',\
 13: 'C4 agriculture',\
 }
+
+pftlist = [pftdic[num+1] for num in range(13)]
+
+cal = pb.calendar()
+cal.get_month_doy()
+index_first_day_month_noleap = cal.index_first_day_month_noleap
+index_first_day_month_leap = cal.index_first_day_month_leap
+
+
+
+
+
+
+
