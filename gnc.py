@@ -920,7 +920,7 @@ def ncfilemap(infile,latvarname=None,lonvarname=None,mapvarname=None,mapdim=None
         return d0,d1,m,cbar,mapvar
 
 
-def ncdatamap(d0,d1,latvarname=None,lonvarname=None,mapvarname=None,forcedata=None,mapdim=None,agremode=None,pyfunc=None,mask=None,unit=None,title=None,\
+def ncdatamap(d0,d1,latvarname=None,lonvarname=None,mapvarname=None,forcedata=None,mapdim=None,agremode=None,pyfunc=None,mask=None,mask_value=None,unit=None,title=None,\
              projection='cyl',mapbound='all',gridstep=(30,30),shift=False,cmap=None,map_threshold=None,colorbarlabel=None,levels=None,data_transform=False,ax=None,\
              colorbardic={}):
     """
@@ -1027,12 +1027,18 @@ def ncdatamap(d0,d1,latvarname=None,lonvarname=None,mapvarname=None,forcedata=No
     if pyfunc!=None:
         if isfunction(pyfunc):
             mapvar=pyfunc(mapvar)
+        elif isinstance(pyfunc,list) and isfunction(pyfunc[0]):
+            for subpyfunc in pyfunc:
+                mapvar=subpyfunc(mapvar)
         else:
             mapvar=mapvar*pyfunc
 
     #apply mask
     if mask!=None:
         mapvar=mathex.ndarray_apply_mask(mapvar,mask)
+
+    if mask_value != None:
+        mapvar=np.ma.masked_equal(mapvar,mask_value)
 
     #finally, if lat is provide in increasing sequence, flip over the data.
     if latvar[0]<latvar[-1]:
@@ -1243,14 +1249,14 @@ class Ncdata(object):
         else:
             raise ValueError('Default lat and lon names are not found in the data, please specify by add_latvar_lonvar_name, or update default list')
 
-        if np.ndim(self.d1.__dict__[self.latvar_name]) == 1:
+        if np.ndim(self.d1.__dict__[self.latvar_name]) in [0,1]:
             self.latvar = self.d1.__dict__[self.latvar_name]
         elif np.ndim(self.d1.__dict__[self.latvar_name]) == 2:
             self.latvar = self.d1.__dict__[self.latvar_name][:,0]
         else:
             raise ValueError("the lat variable ndim is {0}".format(np.ndim(self.d1.__dict__[self.latvar_name])))
 
-        if np.ndim(self.d1.__dict__[self.lonvar_name]) == 1:
+        if np.ndim(self.d1.__dict__[self.lonvar_name]) in [0,1]:
             self.lonvar = self.d1.__dict__[self.lonvar_name]
         elif np.ndim(self.d1.__dict__[self.lonvar_name]) == 2:
             self.lonvar = self.d1.__dict__[self.lonvar_name][0,:]
@@ -1300,7 +1306,7 @@ class Ncdata(object):
         self.latvar_name=latvar_name
         self.lonvar_name=lonvar_name
 
-    def get_pftsum(self,varlist=None):
+    def get_pftsum(self,varlist=None,veget_npindex=np.s_[:]):
         d0=self.d0
         d2=g.ncdata()
         d1=self.d1
@@ -1317,15 +1323,21 @@ class Ncdata(object):
                         if d0.__dict__[var].dimensions[1]=='PFT':
                             #first/time dim lenght is not 1
                             if d1.__dict__[var].ndim == 4:
-                                veget_max=np.ma.masked_equal(d1.__dict__['VEGET_MAX'],0.)
-                                temp=pb.MaskArrayByNan(d1.__dict__[var])*veget_max
+                                #veget_max=np.ma.masked_equal(d1.__dict__['VEGET_MAX'],0.)
+                                #temp=pb.MaskArrayByNan(d1.__dict__[var])*veget_max
+                                veget_max=d1.VEGET_MAX[veget_npindex]
+                                vardata = d1.__dict__[var][veget_npindex]
+                                temp=vardata*veget_max
                                 temppftsum=np.ma.sum(temp,axis=1)
                                 d2.__dict__[var]=temppftsum
                                 print '{0} treated'.format(var)
                             #first/time dim length is 1
                             elif d1.__dict__[var].ndim == 3:
-                                veget_max=np.ma.masked_equal(d1.__dict__['VEGET_MAX'],0.)
-                                temp=pb.MaskArrayByNan(d1.__dict__[var])*veget_max
+                                #veget_max=np.ma.masked_equal(d1.__dict__['VEGET_MAX'],0.)
+                                #temp=pb.MaskArrayByNan(d1.__dict__[var])*veget_max
+                                veget_max=d1.VEGET_MAX[veget_npindex]
+                                vardata = d1.__dict__[var][veget_npindex]
+                                temp=vardata*veget_max
                                 temppftsum=np.ma.sum(temp,axis=0)
                                 d2.__dict__[var]=temppftsum
                                 print '{0} treated'.format(var)
@@ -1412,7 +1424,7 @@ class Ncdata(object):
             print "{0} : {1}".format(attr_name,self.d0.__dict__[varname].__dict__[attr_name])
         print "Reduced dimension: {0}".format(self.d1.__dict__[varname].shape)
 
-    def map(self,mapvarname=None,forcedata=None,mapdim=None,agremode=None,pyfunc=None,mask=None,unit=None,title=None,pftsum=False,\
+    def map(self,mapvarname=None,forcedata=None,mapdim=None,agremode=None,pyfunc=None,mask=None,unit=None,title=None,pftsum=False,mask_value=None,\
              projection='cyl',mapbound='all',gridstep=(30,30),shift=False,cmap=None,map_threshold=None,colorbarlabel=None,levels=None,data_transform=False,ax=None,\
              colorbardic={}):
         """
@@ -1425,7 +1437,7 @@ class Ncdata(object):
 
         mlist= ncdatamap(d0,d1,latvarname=self.latvar_name,lonvarname=self.lonvar_name,mapvarname=mapvarname,forcedata=forcedata, mapdim=mapdim, \
                          agremode=agremode,pyfunc=pyfunc,\
-                         mask=mask,unit=unit,title=title,\
+                         mask=mask,mask_value=mask_value,unit=unit,title=title,\
                          projection=projection,mapbound=mapbound,gridstep=gridstep,shift=shift,cmap=cmap,map_threshold=map_threshold,\
                          colorbarlabel=colorbarlabel,levels=levels,data_transform=data_transform,ax=ax,colorbardic=colorbardic)
         self.m = mlist[-3]
