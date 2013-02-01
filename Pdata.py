@@ -1090,6 +1090,7 @@ class Pdata(object):
 
     def regroup_data_by_tag_keyword(self,tag_keyword):
         tags=self._taglist
+        return self.regroup_data_by_tag(FilterStringList(tag_keyword,tags))
 
     def leftshift(self,shift=0,taglist='all'):
         taglist=self._set_default_tag(taglist)
