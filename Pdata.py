@@ -61,7 +61,8 @@ def _replace_none_colorlist(colors=None,num=None):
         if num <= len(g.pcolor):
             return g.pcolor[0:num]
         else:
-            raise ValueError("g.pcolor is not long enough when using default colorlist")
+            return g.pcolor*(num/len(g.pcolor)+1)
+            #raise ValueError("g.pcolor is not long enough when using default colorlist")
     else:
         return colors
 
@@ -513,6 +514,13 @@ class Pdata(object):
 
     #TESTED
     def add_entry_noerror(self,x=None,y=None,tag=None):
+        '''
+        Add an entry with no x/y error
+
+        Notes:
+        ------
+        1. if x==None, default index is used.
+        '''
         self.add_tag(tag)
         if x == None:
             self.addx(np.arange(len(y))+1,tag)
@@ -2052,6 +2060,24 @@ class NestPdata(object):
         self.axdic = axdic
         self.axes = axdic
 
+    def get_proleg(self,childtag=None,plottype='all',taglab=True,tag_seq=None):
+        '''
+        Return the proxy legend for the NestedPdata after plotting.
+
+        Notes:
+        ------
+        1. If childtag is None, the proxy legend for an arbitrary one of
+            the child Pdata will be returned, otherwise the one for the
+            specified child Pdata will be returned.
+        2. for other parameters, cf. Pdata.get_proleg
+        '''
+        if childtag == None:
+            pd = self.child_pdata.values()[0]
+        else:
+            pd = self.child_pdata[childtag]
+        return pd.get_proleg(plottype=plottype, taglab=taglab, tag_seq=tag_seq)
+
+
     def copy(self):
         nestpd_dic = {}
         for tag,child_pd in self.child_pdata.items():
@@ -2272,5 +2298,25 @@ class Mdata(Pdata):
             mapconfdic[tag] = mapconf
         self.axdic = axdic
         self.mapconfdic = mapconfdic
+
+    def apply_function(self,func=None,taglist=None,copy=False):
+        '''
+        Apply a function on the array for the tags as specified in taglist
+        '''
+        if copy == True:
+            pdtemp = self.copy()
+        else:
+            pdtemp = self
+
+        taglist=_replace_none_by_given(taglist,self._taglist)
+        for tag in taglist:
+            pdtemp.data[tag]['array']=func(pdtemp.data[tag]['array'])
+        return pdtemp
+
+    def copy(self):
+        data=copy.deepcopy(self.data)
+        pdata=Pdata(data)
+        return pdata
+
 
 
