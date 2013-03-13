@@ -1499,6 +1499,8 @@ class ProxyLegend(object):
             return True
         elif label[0] == '_':
             return True
+        elif label == 'None':
+            return True
 
     def _get_handle_label(self,tagseq=None):
         handle_list=[]
