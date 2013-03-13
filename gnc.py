@@ -1218,6 +1218,9 @@ class Ncdata(object):
             elif 'latitude' in self.dimensions and 'longitude' in self.dimensions:
                 self.latdim_name = 'latitude'
                 self.londim_name = 'longitude'
+            elif 'x' in self.dimensions and 'y' in self.dimensions:
+                self.latdim_name = 'y'
+                self.londim_name = 'x'
             else:
                 raise ValueError("lat/lon dimension names could not be guessed, please either provide the latlon_dim_name or expand default guess list")
         else:
@@ -1506,6 +1509,7 @@ class Ncdata(object):
         (x1,x2),(y1,y2) = self.m([lon1,lon2],[lat1,lat2])
         rec = mat.patches.Rectangle((x1,y1),x2-x1,y2-y1,**kwargs)
         self.m.ax.add_patch(rec)
+        return rec
 
     def add_text(self,lat,lon,s,fontdict=None,**kwargs):
         """
@@ -2084,7 +2088,8 @@ def nc_add_Mdata_mulitfile(filelist,taglist,varlist,npindex=np.s_[:]):
 
     Parameters:
     -----------
-    varlist: varlist length should be equal to filelist.
+    varlist: varlist length should be equal to filelist. Broadcast of list
+        when single string value is provided.
     Notes:
     ------
     All the input nc files should have the same geo_limit
@@ -2098,11 +2103,36 @@ def nc_add_Mdata_mulitfile(filelist,taglist,varlist,npindex=np.s_[:]):
     d0 = Ncdata(filelist[0])
     for filename,tag,varname in zip(filelist,taglist,varlist):
         dt = Ncdata(filename)
-        ydic[tag] = dt.d1.__dict__[varname]
+        ydic[tag] = dt.d1.__dict__[varname][npindex]
     md = Pdata.Mdata()
     md.add_entry_share_latlon_bydic(ydic, lat=d0.lat, lon=d0.lon)
     return md
 
+def nc_add_Pdata_mulitfile(filelist,taglist,varlist,npindex=np.s_[:]):
+    '''
+    Simple wrapper of Pdata.Pdata.add_entry_sharex_noerror_by_dic
+
+    Parameters:
+    -----------
+    varlist: varlist length should be equal to filelist. Broadcast of list
+        when single string value is provided.
+    Notes:
+    ------
+    1. all the entry use default indexed x
+    '''
+    if isinstance(varlist,list):
+        pass
+    elif isinstance(varlist,str):
+        varlist = [varlist]*len(filelist)
+
+    ydic = {}
+    d0 = Ncdata(filelist[0])
+    for filename,tag,varname in zip(filelist,taglist,varlist):
+        dt = Ncdata(filename)
+        ydic[tag] = dt.d1.__dict__[varname][npindex]
+    pd = Pdata.Pdata()
+    pd.add_entry_sharex_noerror_by_dic(ydic)
+    return pd
 
 @append_doc_of(_set_default_ncfile_for_write)
 def nc_creat_ncfile_by_ncfiles(outfile,varname,input_file_list,input_varlist,
