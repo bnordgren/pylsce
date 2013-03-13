@@ -112,13 +112,17 @@ def extract_color_list_cm(cmap,levnum=10):
 
 def cm_extract(cmap,(start,end),levnum=10,levels=None):
     """
-    Create a new cmap by using the matplotlib provided colormaps, but using only the part specified by (start,end).
+    Create a new cmap by using the matplotlib provided colormaps, but using
+        only the part specified by (start,end).
     -----------
     Parameters:
     cmap : a mat.cm instances.
-    (start,end) : the start and end number of level that will be used to generate the new colormap. For example, with (start,end)=
-        (3,10) and levnum=10, the original colormap will be devided into 10 levels, and the colors between level3 and level10 will be
-        used to construct the new colormap. Note the 'start' level is always included.
+    (start,end) : the start and end number of level that will be used to
+        generate the new colormap. For example, with (start,end)= (3,10)
+        and levnum=10, the original colormap will be devided into 10 levels,
+        and the colors between level3 and level10 will be used to
+        construct the new colormap.
+        Note the 'start' level is always included and it's 1-based.
     levnum : the number of levels that original colormap will be divided into.
     levels : cf. function g.rgb2cm
     --------
@@ -134,6 +138,39 @@ def cm_extract(cmap,(start,end),levnum=10,levels=None):
         rgba_array = cmap(np.linspace(0,1,num=levnum,endpoint=True))
         extract_rgba_array_255 = rgba_array[start-1:end,0:3]*255.
         return rgb2cm(extract_rgba_array_255, cmname='tempcm', levels=levels)
+
+def cm_concat_multiple_cm(concat_cmap_list):
+    """
+    Create a new customized colormap by concatenating each part of multiple
+        colormaps.
+
+    Arguments:
+    ----------
+    concat_cmap_list: a list of tuples, with each tuple as
+        (cmap,frac_start,frac_end,slice_number); in which,
+        cmap: name of colormap that's to be extracted from.
+        frac_start/frac_end: start and end positions of the camp that's to
+            be extracted and concatenated with others. frac_start and frac_end
+            must be fractions (0-1), and frac_end is always included.
+        slice_number: the number of slices to be extracted from the
+            [frac_start,frac_end] of the concerned colormap.
+
+    Notes:
+    ------
+    For further example, see $PYLIB/function_doc_notebook/colorbar_color_change_around_zero.ipynb
+    """
+    final_rgba_array_list = []
+    for (cmap,frac_start,frac_end,slice_number) in concat_cmap_list:
+        if not isinstance(cmap, mat.colors.Colormap):
+            raise TypeError("{0} is not mat.colors.Colormap object!".format(cmap))
+        else:
+            rgba_array = cmap(np.linspace(frac_start, frac_end,
+                                          num=slice_number, endpoint=True))
+            extract_rgba_array_255 = rgba_array[:,0:3]*255.
+            final_rgba_array_list.append(extract_rgba_array_255)
+    final_rgb_array = np.concatenate(final_rgba_array_list,axis=0)
+    return rgb2cm(final_rgb_array, cmname='tempcm')
+
 
 redcmp=mat.colors.LinearSegmentedColormap.from_list('redcmp',['#FFCCCC','#330000'])
 def red_level(levnum):
