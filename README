@@ -1,4 +1,4 @@
-This is the python package developed at LSCE by Chao Yue.
+This is the python package developed at LSCE by Chao Yue mainly for personal purpose.
 
 Pdata: provide easy matplotlib wrapper allowing quick plotting.
 gnc: extra NetCDF file handling functions based on netCDF4 package.
