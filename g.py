@@ -17,6 +17,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 import pb
 import rpy2
 import copy
+import rpy
 
 
 '''
@@ -1498,6 +1499,8 @@ class ProxyLegend(object):
         if label == '':
             return True
         elif label[0] == '_':
+            return True
+        elif label == 'None':
             return True
 
     def _get_handle_label(self,tagseq=None):
