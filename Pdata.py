@@ -1090,6 +1090,7 @@ class Pdata(object):
 
     def regroup_data_by_tag_keyword(self,tag_keyword):
         tags=self._taglist
+        return self.regroup_data_by_tag(FilterStringList(tag_keyword,tags))
 
     def leftshift(self,shift=0,taglist='all'):
         taglist=self._set_default_tag(taglist)
@@ -1826,20 +1827,21 @@ class Pdata(object):
         self._taglist.remove(tag)
 
 def pmerge(*pdlist):
-    print "Deprecating Warning!"
-    pdnew=Pdata()
+    print "Deprecating Warning! pmerge"
+    datadic = {}
     for pd in pdlist:
-        pdnew.data.update(pd.data)
+        datadic.update(pd.data)
+    pdnew=Pdata(data=datadic)
     return pdnew
 
 def open(pdfilename):
     """
     create a pdata from "*.pd" file
     """
-    print "DeprecatingWarning!"
+    print "DeprecatingWarning! open"
     pdata=Pdata()
     data=pb.pfload(pdfilename)
-    pdata.data=data
+    pdata = Pdata(data=data)
     return pdata
 
 def dic_pdata_to_pd(pd_dic,filename):
