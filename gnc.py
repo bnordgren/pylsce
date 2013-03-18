@@ -1906,6 +1906,32 @@ class Ncdata(object):
             pd.plot_split_axes(self,plotkw=plotkw,**splitkw)
         return pd
 
+    def Add_Flat_Vars_to_DataFrame(self,varlist,npindex=None,
+                                   df=None,
+                                   pftsum=False,spa=None):
+        """
+        Add vars to DataFrame but being flatted for analysis.
+        """
+        final_ncdata = self._get_final_ncdata_by_flag(pftsum=pftsum,
+                            spa=spa)
+        if df == None:
+            dfdic = {}
+        else:
+            dfdic = df
+
+        for var in varlist:
+            array = final_ncdata.__dict__[var]
+            if np.ma.isMA(array):
+                data = array[np.nonzero(~array.mask)]
+            else:
+                data = array.flatten()
+            dfdic[var] = data
+        if isinstance(dfdic,pa.DataFrame):
+            return dfdic
+        else:
+            return pa.DataFrame(dfdic)
+
+
 
 def nc_get_var_value_grid(ncfile,varname,(vlat1,vlat2),(vlon1,vlon2),
                           pftsum=False):
