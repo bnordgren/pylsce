@@ -22,7 +22,13 @@ import exio
 import copy as copy
 import bmap
 import Pdata_test as Ptest
+import gnc
 
+def append_doc_of(fun):
+    def decorator(f):
+        f.__doc__ += fun.__doc__
+        return f
+    return decorator
 
 def gsetp(*artist,**kwargs):
     """
@@ -2318,6 +2324,30 @@ class Mdata(Pdata):
         data=copy.deepcopy(self.data)
         pdata=Pdata(data)
         return pdata
+
+    @append_doc_of(gnc._set_default_ncfile_for_write)
+    def to_ncfile(self,filename,**kwargs):
+        """
+        An dirty and quick way to write the underlying array data
+            to NetCDF file.
+        Notes:
+        ------
+        1. "long_name" or "unit/units" attributes, when they're present,
+            will be used as the variable attributes of the output nc file.
+        """
+        ncfile = gnc.NcWrite(filename)
+        gnc._set_default_ncfile_for_write(ncfile,**kwargs)
+        ndim = len(ncfile.dimensions)
+        for tag in self._taglist:
+            tagdic = self.data[tag]
+            attr_kwargs = {}
+            if 'unit' in tagdic:
+                attr_kwargs['units'] = tagdic['unit']
+            elif 'long_name' in tagdic:
+                attr_kwargs['long_name'] = tagdic['longname']
+            data = self.data[tag]['array']
+            ncfile.add_var_smart_ndim(tag,ndim,data,**attr_kwargs)
+        ncfile.close()
 
 
 
