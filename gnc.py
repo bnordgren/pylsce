@@ -569,7 +569,7 @@ class NcWrite(object):
         return glob_data
 
 
-    def add_var_smart_ndim(self,varname,numdim,data,**attr_kwargs):
+    def add_var_smart_ndim(self,varname,numdim,data,pftdim=False,**attr_kwargs):
         '''
         Select the add_var_* method in a smart way by knowing the ndim.
 
@@ -578,7 +578,17 @@ class NcWrite(object):
         ndim: the number of dimensions for the varname
         '''
         if numdim == 4:
-            self.add_var_4dim_time_pft_lat_lon(varname, data, **attr_kwargs)
+            if data.ndim == 4:
+                self.add_var_4dim_time_pft_lat_lon(varname, data, **attr_kwargs)
+            elif data.ndim == 3:
+                if pftdim == False:
+                    self.add_var_3dim_time_lat_lon(varname, data, **attr_kwargs)
+                else:
+                    self.add_var_4dim_time_pft_lat_lon(varname, data, **attr_kwargs)
+            elif data.ndim == 2:
+                self.add_var_3dim_time_lat_lon(varname, data, **attr_kwargs)
+            else:
+                raise ValueError("data ndim < 2!")
         elif numdim == 3:
             self.add_var_3dim_time_lat_lon(varname, data, **attr_kwargs)
         elif numdim == 2:
@@ -2258,6 +2268,7 @@ def nc_creat_ncfile_by_ncfiles(outfile,varname,input_file_list,input_varlist,
     ncfile.add_var_smart_ndim(varname,ndim,data,**attr_kwargs)
     ncfile.close()
 
+@append_doc_of(_set_default_ncfile_for_write)
 def nc_merge_ncfiles(outfile,input_file_list,
                                Ncdata_latlon_dim_name=None,
                                attr_kwargs={},
@@ -2287,13 +2298,18 @@ def nc_merge_ncfiles(outfile,input_file_list,
         varlist = pb.StringListAnotB(d.d1.__dict__.keys(),
                                      d.dimvar_name_list)
         for varname in varlist:
-            if varname in varlist_inside or varname == 'VEGET_MAX':
+            if varname in varlist_inside:
+            #if varname in varlist_inside or varname == 'VEGET_MAX':
             #if varname in varlist_inside or varname == 'Areas' or varname == 'VEGET_MAX':
                 print """var --{0}-- in file --{1}-- is discast due to
                     duplication""".format(varname,filename)
             else:
+                if varname == 'VEGET_MAX':
+                    pftdim = True
+                else:
+                    pftdim = False
                 data = d.d1.__dict__[varname]
-                ncfile.add_var_smart_ndim(varname,ndim,data,
+                ncfile.add_var_smart_ndim(varname,ndim,data,pftdim=pftdim,
                     attr_copy_from=d.d0.__dict__[varname],**attr_kwargs)
                 varlist_inside.append(varname)
     ncfile.close()
