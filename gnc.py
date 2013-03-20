@@ -16,6 +16,7 @@ import Pdata
 import datetime
 import pandas as pa
 import os
+import sys
 
 home_dir = os.path.expanduser('~')
 pylab_dir = home_dir+'/'+'python/python_lib'
@@ -568,7 +569,7 @@ class NcWrite(object):
         return glob_data
 
 
-    def add_var_smart_ndim(self,varname,numdim,data,**attr_kwargs):
+    def add_var_smart_ndim(self,varname,numdim,data,pftdim=False,**attr_kwargs):
         '''
         Select the add_var_* method in a smart way by knowing the ndim.
 
@@ -577,7 +578,17 @@ class NcWrite(object):
         ndim: the number of dimensions for the varname
         '''
         if numdim == 4:
-            self.add_var_4dim_time_pft_lat_lon(varname, data, **attr_kwargs)
+            if data.ndim == 4:
+                self.add_var_4dim_time_pft_lat_lon(varname, data, **attr_kwargs)
+            elif data.ndim == 3:
+                if pftdim == False:
+                    self.add_var_3dim_time_lat_lon(varname, data, **attr_kwargs)
+                else:
+                    self.add_var_4dim_time_pft_lat_lon(varname, data, **attr_kwargs)
+            elif data.ndim == 2:
+                self.add_var_3dim_time_lat_lon(varname, data, **attr_kwargs)
+            else:
+                raise ValueError("data ndim < 2!")
         elif numdim == 3:
             self.add_var_3dim_time_lat_lon(varname, data, **attr_kwargs)
         elif numdim == 2:
@@ -648,7 +659,7 @@ class NcWrite(object):
             for key,value in glob_attr_dic.items():
                 self.rootgrp.setncattr(key,value)
 
-def nc_merge_files(outfile,input_file_list,timestep=None,time_length=None,
+def nc_spatial_concat_ncfiles(outfile,input_file_list,timestep=None,time_length=None,
                    varlist=None,latvar=None,lonvar=None,
                    latinfo=None,loninfo=None,pft=False,
                    Ncdata_latlon_dim_name=None):
@@ -1413,11 +1424,17 @@ class Ncdata(object):
     def list_var(self,keyword=None):
         """
         supply keyword for show var names matching the pattern.
+        supply "excludedim" to keyword to exclude the dim varnames in the
+        output list.
         """
         if keyword==None:
             return self.d1.__dict__.keys()
         else:
-            return pb.FilterStringList(keyword,self.d1.__dict__.keys())
+            if keyword == 'excludedim':
+                return pb.StringListAnotB(self.d1.__dict__.keys(),
+                                          self.dimvar_name_list+['Areas','VEGET_MAX'])
+            else:
+                return pb.FilterStringList(keyword,self.d1.__dict__.keys())
 
     def list_var_attr(self,varname):
         """
@@ -2091,6 +2108,37 @@ def arithmetic_ncfiles_var(filelist,varlist,func,npindex=np.s_[:]):
     ndarray_list = [d.d1.__dict__[varname][comindex] for d,varname,comindex in zip(data_list,varlist,npindex_final)]
     return func(*ndarray_list)
 
+def nc_add_Mdata_by_DictFilenameVarlist(dict_filename_varlist,npindex=np.s_[:]):
+    """
+    Simple wrapper of Pdata.Mdata
+
+    Notes:
+    ------
+    1. npindex applies to all filename and varname, thus the usage is
+        very limited.
+
+    2. dict_filename_varlist: a dictionary of (filename,varlist) pairs.
+    """
+    if pb.List_Duplicate_Check(pb.iteflat(dict_filename_varlist.values())):
+        raise ValueError("Duplicate varnames found")
+        sys.exit()
+    md = Pdata.Mdata()
+    for filename in dict_filename_varlist.keys():
+        d = Ncdata(filename)
+        for varname in dict_filename_varlist[filename]:
+            tag = varname
+            md.add_tag(tag)
+            md.add_lat_lon(tag=tag,lat=d.latvar,lon=d.lonvar)
+            md.add_array(d.d1.__dict__[varname][npindex],tag)
+            if hasattr(d.d0.__dict__[varname],'units'):
+                unit = d.d0.__dict__[varname].getncattr('units')
+            elif hasattr(d.d0.__dict__[varname],'unit'):
+                unit = d.d0.__dict__[varname].getncattr('unit')
+            else:
+                unit = None
+            md.add_attr_by_tag(unit={tag:unit})
+    return md
+
 def nc_add_Mdata_mulitfile(filelist,taglist,varlist,npindex=np.s_[:]):
     '''
     Simple wrapper of Pdata.Mdata.add_entry_share_latlon_bydic.
@@ -2116,6 +2164,26 @@ def nc_add_Mdata_mulitfile(filelist,taglist,varlist,npindex=np.s_[:]):
     md = Pdata.Mdata()
     md.add_entry_share_latlon_bydic(ydic, lat=d0.lat, lon=d0.lon)
     return md
+
+def ncfile_get_varlist(filename):
+    """
+    This is a loose application of gnc.Ncdata.list_var()
+
+    Arguments:
+    ----------
+    filename: when it's a single string, return varlist of the file;
+        when it's a list of file names, return a dictionary of
+        (filename,filelist).
+    """
+    if isinstance(filename,str):
+        d = Ncdata(filename)
+        return d.list_var(keyword='excludedim')
+    elif isinstance(filename,list):
+        return dict([(f,ncfile_get_varlist(f)) for f in filename])
+        #tlist = [(f,ncfile_get_varlist(f)) for f in filename]
+        #return dict(tlist)
+
+
 
 def nc_add_Pdata_mulitfile(filelist,taglist,varlist,npindex=np.s_[:]):
     '''
@@ -2179,10 +2247,55 @@ def nc_creat_ncfile_by_ncfiles(outfile,varname,input_file_list,input_varlist,
     ndarray_list = [d.d1.__dict__[var][comindex] for d,var,comindex
                     in zip(data_list,input_varlist,npindex)]
     ndim = len(ncfile.dimensions)
-    data = pyfunc(*ndarray_list)
+    data = pyfunc(ndarray_list)
     ncfile.add_var_smart_ndim(varname,ndim,data,**attr_kwargs)
     ncfile.close()
 
+@append_doc_of(_set_default_ncfile_for_write)
+def nc_merge_ncfiles(outfile,input_file_list,
+                               Ncdata_latlon_dim_name=None,
+                               attr_kwargs={},
+                               **kwargs):
+    '''
+    Merge all the variables in the input_file_list as a single file. The
+        duplicate vriables that come later will be discast.
+
+    Parameters:
+    -----------
+    input_file_list: input file list.
+    Ncdata_latlon_dim_name: used in Ncdata function
+    attr_kwargs: used in Ncwrite.add_var
+
+    Notes:
+    ------
+    This is intended to write only ONE variable for the nc file.
+
+    '''
+    ncfile = NcWrite(outfile)
+    _set_default_ncfile_for_write(ncfile,**kwargs)
+    ndim = len(ncfile.dimensions)
+    varlist_inside = []
+
+    for filename in input_file_list:
+        d = Ncdata(filename,latlon_dim_name=Ncdata_latlon_dim_name)
+        varlist = pb.StringListAnotB(d.d1.__dict__.keys(),
+                                     d.dimvar_name_list)
+        for varname in varlist:
+            if varname in varlist_inside:
+            #if varname in varlist_inside or varname == 'VEGET_MAX':
+            #if varname in varlist_inside or varname == 'Areas' or varname == 'VEGET_MAX':
+                print """var --{0}-- in file --{1}-- is discast due to
+                    duplication""".format(varname,filename)
+            else:
+                if varname == 'VEGET_MAX':
+                    pftdim = True
+                else:
+                    pftdim = False
+                data = d.d1.__dict__[varname]
+                ncfile.add_var_smart_ndim(varname,ndim,data,pftdim=pftdim,
+                    attr_copy_from=d.d0.__dict__[varname],**attr_kwargs)
+                varlist_inside.append(varname)
+    ncfile.close()
 
 
 def test_nc_subgrid():
