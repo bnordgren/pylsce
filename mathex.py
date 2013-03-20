@@ -1263,4 +1263,110 @@ def ndarray_mask_by_threshold(pdata,map_threshold):
         return pdata
 
 
+def ndarray_get_index_by_interval(array,interval,left_close=True,
+        right_close=True):
+    """
+    Rturn the index of the array members who fall in the given interval.
+
+    Parameters:
+    -----------
+    1. left_close/right_close: To indicate the interval brink point.
+    """
+    if left_close and right_close:
+        extract_slice = np.nonzero((array >= interval[0])&(array <= interval[1]))
+    elif left_close:
+        extract_slice = np.nonzero((array >= interval[0])&(array < interval[1]))
+    elif right_close:
+        extract_slice = np.nonzero((array > interval[0])&(array <= interval[1]))
+    else:
+        extract_slice = np.nonzero((array > interval[0])&(array < interval[1]))
+    return extract_slice
+
+def ndarray_categorize_data(array,interval_sequence):
+    """
+    Return an string array corresponding which is the result of categorizing
+        the input array by the given interval sequence.
+
+    Notes:
+    ------
+    1. the interval_range is supposed to include the min and max values of
+        the given array, otherwise all the array values falling outside
+        interval_range will be untreated. Except for the last two elements
+        in the interval_sequence, all the elements before them form a
+        close-open interval, i.e., the interval is like
+        [a_1,a_2),[a_2,a_3),...,[a_{n-2},a_{n-1}),[a_{n-1},a_{n}].
+    """
+    if array.ndim > 1:
+        raise ValueError("only accept one dimenional array!")
+    else:
+        keys = [str(interval_sequence[i])+'-'+str(interval_sequence[i+1]) for
+                i in range(len(interval_sequence)-1)]
+        maxlen = max(map(len,keys))
+        outarray = np.empty_like(array,dtype='S'+str(maxlen))
+        for i in range(len(interval_sequence)-1):
+            if i != len(interval_sequence)-2:
+                idx = ndarray_get_index_by_interval(array,
+                    (interval_sequence[i],interval_sequence[i+1]),
+                    left_close=True,right_close=False)
+            else:
+                idx = ndarray_get_index_by_interval(array,
+                    (interval_sequence[i],interval_sequence[i+1]),
+                    left_close=True,right_close=True)
+            outarray[idx] = keys[i]
+        return outarray
+
+def np_get_index(ndim,axis,slice_number):
+    """
+    Construct an index for used in slicing numpy array by specifying the
+        axis and the slice in the axis.
+
+    Parameters:
+    -----------
+    1. axis: the axis of the array.
+    2. slice_number: the 0-based slice number in the axis.
+    3. ndim: the ndim of the ndarray.
+    """
+    full_idx = [slice(None)] * ndim
+    full_idx[axis] = slice_number
+    return full_idx
+
+def ndarray_mask_equal(ndarray,axis=0):
+    """
+    Check if the mask along the specified axis for all subarrays are equal.
+    """
+    if not np.ma.isMA(ndarray):
+        raise ValueError("input array is not mask array")
+    else:
+        base_array = ndarray[np_get_index(ndarray.ndim,axis,0)]
+        for i in range(1,ndarray.shape[axis]):
+            idx = np_get_index(ndarray.ndim,axis,i)
+            try:
+                if np.array_equal(base_array.mask,ndarray[idx].mask):
+                    pass
+                else:
+                    return False
+            except AttributeError:
+                return False
+    return True
+
+def ndarray_arraylist_equal_shape(array_list):
+    """
+    check if all the arrays in the list share the same shape.
+    """
+    if len(np.unique(map(np.shape,array_list))) > 1:
+        return False
+    else:
+        return True
+
+def DataFrame_from_flatten_arraydict(array_dic):
+    """
+    Create a DataFrame by flating input ndarrays and use their keys as
+        the DataFrame colomn names.
+    """
+    if ndarray_arraylist_equal_shape(array_dic.values()):
+        return pa.DataFrame(pb.Dic_Apply_Func(lambda arr:arr.flatten(),array_dic))
+    else:
+        raise ValueError("arrays for input dict do not shape same shape!")
+
+
 
