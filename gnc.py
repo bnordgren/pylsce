@@ -839,7 +839,10 @@ def ncm2y(infile,outfile,mode=None,varlist='all'):
         ba=rootgrp.createVariable(str(var_full._name),var_full.dtype,(str(var_full.dimensions[0]),str(var_full.dimensions[1]),str(var_full.dimensions[2]),))
         if hasattr(var_full,'long_name'):
             ba.long_name=var_full.long_name
-        ba.units=var_full.units
+        try:
+            ba.units=var_full.units
+        except AttributeError:
+            pass
         if vardata.ndim==2:
             ba[0,:,:]=vardata
         else:
@@ -851,9 +854,9 @@ def ncm2y(infile,outfile,mode=None,varlist='all'):
         print 'Variable  --',str(var_full._name),'--  is fed into the file ','--',outfile,'--'
 
     if hasattr(f1,'history'):
-        rootgrp.history='year value by applying method '+mode+' from file '+'--'+infile+'--\n'+f1.history.encode()
+        rootgrp.history='year value by applying method month-to-year '+mode+' from file '+'--'+infile+'--\n'+f1.history.encode()
     else:
-        rootgrp.history='year value by applying method '+mode+' from file '+'--'+infile+'--'
+        rootgrp.history='year value by applying method month-to-year '+mode+' from file '+'--'+infile+'--'
     f1.close()
     rootgrp.close()
 
@@ -1791,7 +1794,7 @@ class Ncdata(object):
         for varname in varlist:
             data=final_ncdata.__dict__[varname][npindex]
             md.add_tag(varname)
-            md.add_array(data)
+            md.add_array(data,varname)
             md.add_lat_lon(tag=varname,lat=self.lat,lon=self.lon)
         return md
 
