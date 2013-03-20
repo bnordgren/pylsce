@@ -2325,7 +2325,7 @@ class Mdata(Pdata):
         pdata=Pdata(data)
         return pdata
 
-    @append_doc_of(gnc._set_default_ncfile_for_write)
+    #@append_doc_of(gnc._set_default_ncfile_for_write)
     def to_ncfile(self,filename,**kwargs):
         """
         An dirty and quick way to write the underlying array data
