@@ -1512,7 +1512,7 @@ class Ncdata(object):
         self.m.scatter(x,y,*args,**kwargs)
 
     def add_Rectangle(self,(lat1,lon1),(lat2,lon2),index=False,
-                      facecolor='none',edgecolor='r',**kwargs):
+                      **kwargs):
         """
         Add a rectangle of by specifing (lat1,lon1) and (lat2,lon2).
 
@@ -1552,6 +1552,31 @@ class Ncdata(object):
                 lat = (coord[0][0]+coord[1][0])/2.
                 lon = (coord[0][1]+coord[1][1])/2.
                 self.add_text(lat,lon,textlist[i],fontdict=fontdict,**textkw)
+
+    def add_Rectangle_list_by_dataframe(self,dataframe,label=False,
+                                        fontdict=None,textkw={},**kwargs):
+        """
+        Add rectangle list by using dataframe.
+
+        Notes:
+        ------
+        1. the dataframe should have "lat1,lat2,lon1,lon2,region" as column
+            names.
+        """
+        for name in ['lat1','lat2','lon1','lon2','region']:
+            if name not in dataframe.columns:
+                raise ValueError("{0} not a column name of dataframe").format(name)
+        region_name_list = []
+        coordlist = []
+        for index,row in dataframe.iterrows():
+            region_name_list.append(row['region'])
+            coordlist.append([(row['lat1'],row['lon1']),(row['lat2'],row['lon2'])])
+        if label == False:
+            textlist = None
+        else:
+            textlist = region_name_list
+        self.add_Rectangle_list_coordinates(coordlist,textlist=textlist,
+                        fontdict=fontdict,textkw=textkw,**kwargs)
 
 
     def Get_PointValue(self,var,(vlat,vlon)):
@@ -1926,15 +1951,24 @@ class Ncdata(object):
             pd.plot_split_axes(self,plotkw=plotkw,**splitkw)
         return pd
 
-    def Add_Vars_to_Dict(self,varlist,npindex=np.s_[:],
-                                   pftsum=False,spa=None):
+    def Add_Vars_to_Dict_Grid(self,varlist,grid=None,pftsum=False):
         """
         Add vars to dictionary.
-        """
-        final_ncdata = self._get_final_ncdata_by_flag(pftsum=pftsum,
-                            spa=spa)
-        return dict([(var,final_ncdata.__dict__[var][npindex]) for var in varlist])
 
+        Parameters:
+        -----------
+        1.grid should be a tuple of (lat1,lon1,lat2,lon2)
+        """
+        final_ncdata = self._get_final_ncdata_by_flag(pftsum=pftsum)
+        final_dict = {}
+        for var in varlist:
+            if grid == None:
+                data = final_ncdata.__dict__[var]
+            else:
+                data = self.Get_GridValue(var,(grid[0],grid[2]),(grid[1],grid[3]),
+                                         pftsum=pftsum)
+            final_dict[var] = data
+        return final_dict
 
 def nc_get_var_value_grid(ncfile,varname,(vlat1,vlat2),(vlon1,vlon2),
                           pftsum=False):
