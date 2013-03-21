@@ -1739,7 +1739,7 @@ class Pdata(object):
                         default_tagseq=self._taglist,**kwargs)
         for tag,axt in axdic.items():
             pd_temp=self.regroup_data_by_tag([tag])
-            pd_temp.plot(axt,**plotkw)
+            pd_temp.plot(axt,legend=False,**plotkw)
         self.axes = axdic
         self.axdic = axdic
 
