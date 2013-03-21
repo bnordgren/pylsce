@@ -1093,11 +1093,20 @@ class Pdata(object):
             pdata.add_entry_by_dic(**{newtag:new_entry})
         return pdata
 
-    def regroup_data_by_tag(self,taglist):
+    def regroup_data_by_tag(self,taglist,exclude=False):
         """
         Subset data by "taglist" and return as a new Pdata instance.
         With all features for tag reserved.
+
+        Parameters:
+        -----------
+        1. exclude: use exclude for reverse selection.
+
         """
+        if exclude == False:
+            taglist = taglist
+        else:
+            taglist = StringListAnotB(self._taglist,taglist)
         targetdic=Dic_Extract_By_Subkeylist(self.data,taglist)
         pdata=Pdata(targetdic)
         return pdata
@@ -1567,6 +1576,15 @@ class Pdata(object):
             tag_value['x'] = []
             tag_value['y'] = []
 
+    def set_xdata_by_ydata_by_tag(self,tag):
+        """
+        Set the xdata of all tags to the ydata of the specified tag.
+        """
+        remain_taglist = StringListAnotB(self._taglist,[tag])
+        targetdic=Dic_Extract_By_Subkeylist(self.data,remain_taglist)
+        for temptag in remain_taglist:
+            targetdic[temptag]['x'] = self.data[tag]['y']
+        return Pdata(targetdic)
 
     def get_handle_label(self,plottype='all',taglab=False,tag_seq=None):
         handler_list=[]
@@ -1724,6 +1742,37 @@ class Pdata(object):
             pd_temp.plot(axt,**plotkw)
         self.axes = axdic
         self.axdic = axdic
+
+
+    def set_xlabel(self,xlabel=None,xunit=False):
+        if not hasattr(self,'axdic'):
+            raise AttributeError("This is not a seperate axes plot!")
+        else:
+            self.xlabeldic = {}
+            for tag,axt in self.axdic.items():
+                try:
+                    orlabel = self.data[tag]['xlabel']
+                except KeyError:
+                    if xlabel == None:
+                        orlabel = tag
+                    else:
+                        orlabel = xlabel
+
+                if xunit == True:
+                    try:
+                        xunit = self.data[tag]['xunit']
+                    except AttributeError:
+                        xunit = ''
+                else:
+                    xunit=''
+
+                if xunit != '':
+                    full_xlabel = orlabel+'('+xunit+')'
+                else:
+                    full_xlabel = orlabel
+
+                self.xlabeldic[tag] = axt.set_xlabel(full_xlabel)
+
 
     def imshow(self,force_axs=None,tagseq=None):
         pass

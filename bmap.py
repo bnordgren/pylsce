@@ -104,7 +104,7 @@ class gmap(object):
                               **kwargs)
                 m.drawcoastlines(linewidth=0.7)
                 m.fillcontinents(color='0.8',zorder=0)
-                if gridstep!=None:
+                if gridstep!=None and gridstep!=False:
                     m.drawparallels(np.arange(mapbound['para0'],91.,gridstep[0]),
                                     labels=[1,0,0,0],fontsize=10)
                     m.drawmeridians(np.arange(-180.,181.,gridstep[1]),
@@ -206,7 +206,7 @@ def makemap(ax,projection='cyl',mapbound='all',lat=None,lon=None,
                           **kwargs)
             m.drawcoastlines(linewidth=0.7)
             m.fillcontinents(color='0.8',zorder=0)
-            if gridstep!=None:
+            if gridstep not in [None,False]:
                 m.drawparallels(np.arange(mapbound['para0'],91.,gridstep[0]),
                                 labels=[1,0,0,0],fontsize=10)
                 m.drawmeridians(np.arange(-180.,181.,gridstep[1]),
