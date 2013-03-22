@@ -1773,6 +1773,34 @@ class Pdata(object):
 
                 self.xlabeldic[tag] = axt.set_xlabel(full_xlabel)
 
+    def set_ylabel(self,ylabel=None,yunit=False):
+        if not hasattr(self,'axdic'):
+            raise AttributeError("This is not a seperate axes plot!")
+        else:
+            self.ylabeldic = {}
+            for tag,axt in self.axdic.items():
+                try:
+                    orlabel = self.data[tag]['ylabel']
+                except KeyError:
+                    if ylabel == None:
+                        orlabel = tag
+                    else:
+                        orlabel = ylabel
+
+                if yunit == True:
+                    try:
+                        yunit = self.data[tag]['yunit']
+                    except AttributeError:
+                        yunit = ''
+                else:
+                    yunit=''
+
+                if yunit != '':
+                    full_ylabel = orlabel+'('+yunit+')'
+                else:
+                    full_ylabel = orlabel
+
+                self.ylabeldic[tag] = axt.set_ylabel(full_ylabel)
 
     def imshow(self,force_axs=None,tagseq=None):
         pass

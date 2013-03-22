@@ -79,6 +79,12 @@ def Set_Axes_Cross_Line(ax,color='r',linewidth=None):
     ax.lines.extend([l1,l2])
 
 
+def imshow_log_colorbar(data,vmin=None,vmax=None,**kwargs):
+    fig,ax=Create_1Axes()
+    im = ax.imshow(data,norm=mat.colors.LogNorm(vmin=vmin, vmax=vmax),**kwargs)
+    cbar = plt.colorbar(im)
+
+
 def c2show():
     for i in range(len(c2)):
         cname=c2.keys()[i]
