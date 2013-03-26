@@ -1538,6 +1538,30 @@ class Ncdata(object):
         x,y = self.m(lon,lat)
         self.m.ax.text(x,y,s,fontdict=fontdict,**kwargs)
 
+    def add_text_by_dataframe(self,dataframe,label=False,name='region',
+                                        fontdict=None,**kwargs):
+        """
+        Add a series of text by using fields from a dataframe.
+
+        Parameters:
+        -----------
+        1.name: the name field in the dataframe which denotes the column of text.
+
+        Notes:
+        ------
+        1. the dataframe should have "lat,lon" to denote the text position.
+        """
+        for cor_name in ['lon','lat']:
+            if cor_name not in dataframe.columns:
+                raise ValueError("{0} not a column name of dataframe").format(cor_name)
+        for index,row in dataframe.iterrows():
+            lat = row['lat']
+            lon = row['lon']
+            s = row[name]
+            self.add_text(lat,lon,s,fontdict=fontdict,**kwargs)
+
+
+
     def add_Rectangle_list_coordinates(self,coordlist,textlist=None,fontdict=None,textkw={},**kwargs):
         """
         Add a list of [(lat1,lon1),(lat2,lon2)] to add a series of rectangles at one time.
@@ -1951,24 +1975,117 @@ class Ncdata(object):
             pd.plot_split_axes(self,plotkw=plotkw,**splitkw)
         return pd
 
-    def Add_Vars_to_Dict_Grid(self,varlist,grid=None,pftsum=False):
+    def Add_Vars_to_Dict_Grid(self,varlist,grid=None,pftsum=False,mask_by=None):
         """
         Add vars to dictionary.
 
         Parameters:
         -----------
-        1.grid should be a tuple of (lat1,lon1,lat2,lon2)
+        grid: should be a tuple of (lat1,lon1,lat2,lon2)
+        mask_by: in case of a boolean numpy array, the mask will be directly
+            apply on the retrieved array by using mathex.ndarray_mask_smart_apply;
+            incase of a tuple like (varname,{'lb':2000,'ub':5000}), the mask
+            will first be generated using mathex.ndarray_mask_by_threshold,
+            followed by mathex.ndarray_mask_smart_apply.
         """
         final_ncdata = self._get_final_ncdata_by_flag(pftsum=pftsum)
         final_dict = {}
+
+        def treat_data_by_mask(data,mask_by):
+            if mask_by == None:
+                return data
+            elif isinstance(mask_by,np.ndarray):
+                return mathex.ndarray_mask_smart_apply(data,mask)
+            elif isinstance(mask_by,tuple):
+                varname = mask_by[0]
+                map_threshold = mask_by[1]
+                mask_vardata = \
+                    mathex.ndarray_mask_by_threshold(
+                        final_ncdata.__dict__[varname],map_threshold)
+                return mathex.ndarray_mask_smart_apply(data,mask_vardata.mask)
+            else:
+                raise ValueError("wrong mask_by value")
+
+
         for var in varlist:
             if grid == None:
                 data = final_ncdata.__dict__[var]
             else:
                 data = self.Get_GridValue(var,(grid[0],grid[2]),(grid[1],grid[3]),
                                          pftsum=pftsum)
-            final_dict[var] = data
+            final_dict[var] = treat_data_by_mask(data,mask_by)
         return final_dict
+
+    def Add_Vars_to_Dict_by_RegSum(self,varlist,mode='sum',pftsum=False,
+                                   mask_by=None,
+                                   area_weight=False,unit_func=None,grid=None):
+        """
+        Add vars to dictionary, but with some spatial operation.
+        This is a further wrapper of gnc.Ncdata.Add_Vars_to_Dict_Grid
+
+        Parameters:
+        -----------
+        mode: 'sum' for region sum;'mean' for regional mean
+        unit_func: functions used to scale the data due to unit reason.
+        area_weight: could be boolean or string, default value False.
+            False: simple area operation is done, assuming equal weight
+            True: default ORCHIDEE 'Areas' variable used as area
+            string: used to denote the varialbe name which means the area in
+                the nc file.
+        grid: should be a tuple of (lat1,lon1,lat2,lon2)
+        mask_by: in case of a boolean numpy array, the mask will be directly
+            apply on the retrieved array by using mathex.ndarray_mask_smart_apply;
+            incase of a tuple like (varname,{'lb':2000,'ub':5000}), the mask
+            will first be generated using mathex.ndarray_mask_by_threshold,
+            followed by mathex.ndarray_mask_smart_apply.
+        """
+        dic = self.Add_Vars_to_Dict_Grid(varlist,grid=grid,pftsum=pftsum,
+                                         mask_by=mask_by)
+
+        def get_area_array(area_weight,shape,unit_func):
+            """
+            """
+            if area_weight == True:
+                area = self.Add_Vars_to_Dict_Grid(['Areas'],grid=grid).values()[0]
+            elif isinstance(area_weight,str):
+                area = self.Add_Vars_to_Dict_Grid([area_weight],grid=grid).values()[0]
+            elif area_weight == False:
+                area = np.ones(shape)  #we use one to apply simple avearge
+                                       #shape is the latXlon of grid
+            else:
+                raise ValueError("area_weight could only be boolean or str type.")
+
+            #unit_func is mainly for purpose of scaling the data due to unit reasons.
+            if unit_func != None:
+                area = unit_func(area)
+
+            return area
+
+
+
+        def get_func_by_mode(mode,area):
+            func_sum = lambda x:np.ma.sum(np.ma.sum(x,axis=-1),axis=-1)
+            if mode == 'sum':
+                func = func_sum
+            elif mode == 'mean':
+                func = lambda x:func_sum(x)/func_sum(area)
+            else:
+                raise ValueError("mode could only be sum/mean")
+            return func
+
+        for key,data in dic.items():
+            shape = (data.shape[-2],data.shape[-1])
+            area = get_area_array(area_weight,shape,unit_func)
+            data_area = data*area
+            mode_func = get_func_by_mode(mode,area)
+            data_new = mode_func(data_area)
+            if unit_func == None:
+                final_data = data_new
+            else:
+                final_data = unit_func(data_new)
+            dic[key] = final_data
+
+        return dic
 
 def nc_get_var_value_grid(ncfile,varname,(vlat1,vlat2),(vlon1,vlon2),
                           pftsum=False):
