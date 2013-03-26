@@ -1230,6 +1230,37 @@ def ndarray_group_txt_by_func(filelist,outputfile=None,func=None,fmt='%.18e', de
         np.savetxt(outputfile, arr, fmt=fmt, delimiter=delimiter, newline=newline)
 
 
+def ndarray_mask_smart_apply(indata,mask):
+    """
+    This "smart" mask apply can handle only the situation of ndim of indata
+        is 2/3/4 and the mask ndim is 2 or equal of indata ndim.
+    """
+    if indata.ndim not in [2,3,4]:
+        raise ValueError("could only handle ndim of 2/3/4 for input data")
+    else:
+        if mask.ndim > indata.ndim:
+            raise ValueError("mask.ndim bigger than indata.ndim")
+        elif mask.ndim == indata.ndim:
+            return np.ma.masked_array(indata,mask=mask)
+        else:
+            if mask.ndim != 2:
+                raise ValueError("""mask.ndim could only be 2 in case of
+                                    indata.ndim != mask.ndim""")
+
+            else:
+                inshape = indata.shape
+                if mask.shape != (inshape[-2],inshape[-1]):
+                    raise ValueError("""mask shape must be the same as the 
+                                        last 2-dim shape of indata""")
+                else:
+                    if indata.ndim == 3:
+                        mask_new = np.tile(mask,(inshape[0],1,1))
+                    elif indata.ndim == 4:
+                        mask_new = np.tile(mask,(inshape[0],inshape[1],1,1))
+                    else: #not necessary as the ndim could only be 3/4
+                        pass
+                    return np.ma.masked_array(indata,mask=mask_new)
+
 def ndarray_mask_by_threshold(pdata,map_threshold):
     '''
     Mask a ndarray by map_threhold
