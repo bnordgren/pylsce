@@ -73,6 +73,30 @@ def show_cmap(cmap=mat.cm.jet,levnum=10):
     plt.imshow(dt,cmap=cmap)
     plt.colorbar()
 
+def show_cmap_all():
+    # This example comes from the Cookbook on www.scipy.org.  According to the
+    # history, Andrew Straw did the conversion from an old page, but it is
+    # unclear who the original author is.
+    a = np.linspace(0, 1, 256).reshape(1,-1)
+    a = np.vstack((a,a))
+
+    # Get a list of the colormaps in matplotlib.  Ignore the ones that end with
+    # '_r' because these are simply reversed versions of ones that don't end
+    # with '_r'
+    maps = sorted(m for m in plt.cm.datad if not m.endswith("_r"))
+    nmaps = len(maps) + 1
+
+    fig = plt.figure(figsize=(5,10))
+    fig.subplots_adjust(top=0.99, bottom=0.01, left=0.2, right=0.99)
+    for i,m in enumerate(maps):
+        ax = plt.subplot(nmaps, 1, i+1)
+        plt.axis("off")
+        plt.imshow(a, aspect='auto', cmap=plt.get_cmap(m), origin='lower')
+        pos = list(ax.get_position().bounds)
+        fig.text(pos[0] - 0.01, pos[1], m, fontsize=10, horizontalalignment='right')
+    plt.show()
+
+
 def Set_Axes_Cross_Line(ax,color='r',linewidth=None):
     l1 = mat.lines.Line2D([0,1],[1,0],transform=ax.transAxes,color=color,linewidth=linewidth,axes=ax)
     l2 = mat.lines.Line2D([0,1],[0,1],transform=ax.transAxes,color=color,linewidth=linewidth,axes=ax)
@@ -1025,6 +1049,9 @@ def Create_AxesMatrix(row_num,column_num):
 
 
 def Create_Twin_Axes():
+    """
+    fig,host,par = Create_Twin_Axes()
+    """
     from mpl_toolkits.axes_grid1 import host_subplot
     fig=plt.figure()
     host = host_subplot(111)
