@@ -2276,6 +2276,12 @@ class Mdata(Pdata):
             self.add_tag(tag)
             self.add_array(ydata,tag)
 
+    @classmethod
+    def from_dict_of_array(cls,ydic):
+        md = Mdata()
+        md.add_entry_array_bydic(ydic)
+        return md
+
     def add_entry_share_latlon_bydic(self,ydic,lat=None,lon=None):
         for tag,ydata in ydic.items():
             self.add_tag(tag)
@@ -2322,7 +2328,14 @@ class Mdata(Pdata):
         if cbar == True:
             self.colorbar('img',**cbarkw)
 
-    def colorbar(self,plottype,**kw):
+    def colorbar(self,plottype='img',**kw):
+        """
+        Add colorbar.
+
+        Parameters:
+        -----------
+        1. plottype: now accept only "img"
+        """
         if plottype == 'img':
             mappable_dict = self.imgdic
         else:
