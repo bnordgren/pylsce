@@ -2,15 +2,15 @@
 License
 =======
 
-Pdata is distributed under a 3-clause ("Simplified" or "New") BSD
+pylsce is distributed under a 3-clause ("Simplified" or "New") BSD
 license. Parts of NumPy, SciPy, numpydoc, bottleneck, which all have
-BSD-compatible licenses, are included. Their licenses follow the pandas
+BSD-compatible licenses, are included. Their licenses follow the pylsce
 license.
 
-pandas license
+pylsce license
 ==============
 
-Copyright (c) 2011-2012, Chao Yue
+Copyright (c) 2012-2013, Chao Yue
 All rights reserved.
 
 
