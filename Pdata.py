@@ -2424,6 +2424,18 @@ class Mdata(Pdata):
         ------
         1. "long_name" or "unit/units" attributes, when they're present,
             will be used as the variable attributes of the output nc file.
+
+        kwargs:
+        -------
+        timestep: 'year' or 'month', default is 'year'
+        time_length: np.arange(1,time_length+1) will be the time variable value,
+            default value is 1.
+        latvar,lonvar: the lat/lon for megered data. default is 0.5 degree
+            resolution with global coverage.
+        latinfo,loninfo: tuple containing ('lat/lon_dim_name','lat/lon_var_name',
+            'lat/lon_var_longname'); default for lat is ('lat','lat','latitude')
+            and for lon is ('lon','lon','longitude').
+        pft: if pft==True, then PFT dimensions from ORCHIDEE will be added.
         """
         ncfile = gnc.NcWrite(filename)
         gnc._set_default_ncfile_for_write(ncfile,**kwargs)
@@ -2439,5 +2451,45 @@ class Mdata(Pdata):
             ncfile.add_var_smart_ndim(tag,ndim,data,**attr_kwargs)
         ncfile.close()
 
+
+class PolyData(Pdata):
+    _data_base_keylist=['poly']
+    _new_entry=dict.fromkeys(_data_base_keylist,None)
+
+    def add_tag(self,tag=None):
+        self.data[tag]=PolyData._new_entry.copy()
+        self._taglist.append(tag)
+
+    def add_poly(self,data,tag):
+        self.data[tag]['poly'] = data
+
+    def add_entry_bydic(self,ydic):
+        for tag,ydata in ydic.items():
+            self.add_tag(tag)
+            self.add_poly(ydata,tag)
+
+    @classmethod
+    def from_dict_of_poly(cls,ydic):
+        md = PolyData()
+        md.add_entry_bydic(ydic)
+        return md
+
+    @classmethod
+    def from_DataFrame(cls,df,column_name):
+        pass
+
+
+    def draw(self,axes=None,**kwargs):
+        self.polydic={}
+        axes=_replace_none_axes(axes)
+        for tag in self._taglist:
+            col = mat.collections.PolyCollection(self.data[tag]['poly'],**kwargs)
+            axes.add_collection(col)
+            self.polydic[tag] = col
+        axes.autoscale_view()
+
+    def setp_tag(self,tagkw=False,**nested_attr_tag_value_dic):
+        artist_dic = self.polydic
+        self._setp_by_tag(artist_dic,tagkw=tagkw,**nested_attr_tag_value_dic)
 
 
