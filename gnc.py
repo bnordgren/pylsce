@@ -20,7 +20,7 @@ import sys
 
 home_dir = os.path.expanduser('~')
 pylab_dir = home_dir+'/'+'python/python_lib'
-basedata_dir = pylab_dir + '/base_data'
+basedata_dir = pylab_dir + '/basedata'
 
 def append_doc_of(fun):
     def decorator(f):
@@ -68,7 +68,11 @@ def find_index_by_vertex(globHDlon, globHDlat, (vlon1,vlon2), (vlat1,vlat2)):
     (vlon1,vlon2), (vlat1,vlat2) are (min, max) of lon/lat for the individuel files.
     Return:
         (lon_index_min, lon_index_max, lat_index_min, lat_index_max)
-    Test:
+
+    Notes:
+    ------
+    1. To retrieve the data from derived indexes, one should use:
+        np.s_[lat_index_min:lat_index_max+1, lon_index_min:lon_index_max+1]
 
     """
     lon_index = np.nonzero((globHDlon >= vlon1) & (globHDlon <= vlon2))[0]
@@ -80,6 +84,77 @@ def find_index_by_vertex(globHDlon, globHDlat, (vlon1,vlon2), (vlat1,vlat2)):
     lat_index_max = np.max(lat_index)
     return (lon_index_min, lon_index_max, lat_index_min, lat_index_max)
 
+def find_index_by_point(lat,lon,(vlat,vlon)):
+    """
+    find the index for the point(vlon,vlat) in the grid constructed by
+        lon/lat.
+
+    Returns:
+    --------
+    (index_lat,index_lon) which could be used directly in slicing data.
+    """
+    latstep = lat[0] - lat[1]
+    if latstep <= 0:
+        raise ValueError("lat input is increasing!")
+    else:
+        lat_big = lat[0] + latstep/2.
+        lat_small = lat[-1] - latstep/2.
+
+    lonstep = lon[1] - lon[0]
+    if lonstep <= 0:
+        raise ValueError("lon input is decreasing!")
+    else:
+        lon_big = lon[-1] + lonstep/2.
+        lon_small = lon[0] - lonstep/2.
+
+    #vlat/vlon could not fall outside range
+    if vlat > lat_big or vlat < lat_small:
+        raise ValueError("vlat outside lat range")
+    if vlon > lon_big or vlon < lon_small:
+        raise ValueError("vlon outside lon range")
+
+
+    #construct final index for lat
+    try:
+        index_more=np.where(lat>=vlat)[0][-1]
+    except IndexError:
+        index_lat = np.where(lat<=vlat)[0][0]
+        index_more = None
+
+    try:
+        index_less=np.where(lat<=vlat)[0][0]
+    except IndexError:
+        index_lat = np.where(lat>=vlat)[0][-1]
+        index_less = None
+
+    if None not in (index_more,index_less):
+        if abs(lat[index_more]-vlat) >= abs(lat[index_less]-vlat):
+            index_lat=index_less
+        else:
+            index_lat=index_more
+
+    #construct final index for lon
+    try:
+        index_more=np.where(lon>=vlon)[0][0]
+    except IndexError:
+        index_lon = np.where(lon<=vlon)[0][-1]
+        index_more = None
+
+    try:
+        index_less=np.where(lon<=vlon)[0][-1]
+    except IndexError:
+        index_lon = np.where(lon>=vlon)[0][0]
+        index_less = None
+
+    if None not in (index_more,index_less):
+        if abs(lon[index_more]-vlon) >= abs(lon[index_less]-vlon):
+            index_lon=index_less
+        else:
+            index_lon=index_more
+
+    return (index_lat,index_lon)
+
+
 def test_find_index_by_vertex():
     d = pb.pfload(basedata_dir+'/landmask_et_latlon.pf')
     (lon_index_min, lon_index_max, lat_index_min, lat_index_max) = find_index_by_vertex(d.globHDlon, d.globHDlat, (-50,20),(-35,25))
@@ -89,7 +164,7 @@ def test_find_index_by_vertex():
     assert lat[0]==24.75 and lat[-1]==-34.75
 
 def test_find_index_by_region():
-    d = pb.pfload('base_data/landmask_et_latlon.pf')
+    d = pb.pfload('basedata/landmask_et_latlon.pf')
     region_lon = np.arange(-49.75,20,0.5)
     region_lat = np.arange(24.75,-35,-0.5)
     (lon_index_min, lon_index_max, lat_index_min, lat_index_max) = find_index_by_region(d.globHDlon, d.globHDlat, region_lon, region_lat)
@@ -1217,6 +1292,7 @@ class Ncdata(object):
             #raise ValueError("please expand the time dimension name candidates list")
 
         self.dimensions = ncf.dimensions
+        self.dim_name_list = self.dimensions.keys()
         #get the global attributes.
         self.global_attributes = dict(ncf.__dict__)
         ncf.close()
@@ -1242,9 +1318,9 @@ class Ncdata(object):
             self.londim_name = latlon_dim_name[1]
 
         #build the dimension names list
-        self.dim_name_list = [self.unlimited_dimname, self.latdim_name, self.londim_name]
-        if 'PFT' in self.dimensions:
-            self.dim_name_list = [self.unlimited_dimname, 'PFT', self.latdim_name, self.londim_name]
+        #self.dim_name_list = [self.unlimited_dimname, self.latdim_name, self.londim_name]
+        #if 'PFT' in self.dimensions:
+            #self.dim_name_list = [self.unlimited_dimname, 'PFT', self.latdim_name, self.londim_name]
 
 
         #read in data
@@ -1649,6 +1725,13 @@ class Ncdata(object):
                                     ))
         return index_latlon_tuple_list
 
+    def Get_latlon_by_vertex(self,(vlat1,vlat2),(vlon1,vlon2)):
+        (lon_index_min, lon_index_max, lat_index_min, lat_index_max) = \
+            self.find_index_by_vertex((vlat1,vlat2),(vlon1,vlon2))
+        sublat = self.lat[lat_index_min:lat_index_max+1]
+        sublon = self.lon[lon_index_min:lon_index_max+1]
+        return (sublat,sublon)
+
 
     def Get_GridValue(self,var,(vlat1,vlat2),(vlon1,vlon2), pftsum=False):
         (lon_index_min, lon_index_max, lat_index_min, lat_index_max) = find_index_by_vertex(self.lonvar, self.latvar, (vlon1,vlon2), (vlat1,vlat2))
@@ -1830,21 +1913,34 @@ class Ncdata(object):
         pd0 = npd.child_pdata[varlist[0]]
         #pd0.set_legend_all(taglab=True,**legkw)
 
-    def Add_Vars_to_Mdata(self,varlist,npindex=np.s_[:],
-                          md=None,pftsum=False,spa=None):
+    def Add_Vars_to_Mdata(self,varlist,grid=None,
+                          mask_by=None,npindex=np.s_[:],
+                          md=None,pftsum=False):
         '''
-        Add several vars to Mdata for easy mapping.
+        Add several vars to Mdata for easy mapping, this is a simple
+            warpper of Add_Vars_to_Dict_Grid.
+
+        Parameters:
+        -----------
+        grid: should be a tuple of (lat1,lon1,lat2,lon2)
+        mask_by: in case of a boolean numpy array, the mask will be directly
+            apply on the retrieved array by using mathex.ndarray_mask_smart_apply;
+            incase of a tuple like (varname,{'lb':2000,'ub':5000}), the mask
+            will first be generated using mathex.ndarray_mask_by_threshold,
+            followed by mathex.ndarray_mask_smart_apply.
+        npindex: further index the data after using grid. Note the npindex
+            is applied after applying the mask_by.
         '''
-        final_ncdata = self._get_final_ncdata_by_flag(pftsum=pftsum,
-                            spa=spa)
         if md==None:
             md=Pdata.Mdata()
 
-        for varname in varlist:
-            data=final_ncdata.__dict__[varname][npindex]
-            md.add_tag(varname)
-            md.add_array(data,varname)
-            md.add_lat_lon(tag=varname,lat=self.lat,lon=self.lon)
+        ydic = self.Add_Vars_to_Dict_Grid(varlist,grid=grid,mask_by=mask_by,
+                                     pftsum=pftsum,npindex=npindex)
+        md.add_entry_array_bydic(ydic)
+        (sublat,sublon)=self.Get_latlon_by_vertex((grid[0],grid[2]),
+                                                  (grid[1],grid[3]))
+
+        md.add_attr_by_tag(lat=sublat,lon=sublon)
         return md
 
 
@@ -1975,7 +2071,9 @@ class Ncdata(object):
             pd.plot_split_axes(self,plotkw=plotkw,**splitkw)
         return pd
 
-    def Add_Vars_to_Dict_Grid(self,varlist,grid=None,pftsum=False,mask_by=None):
+    def Add_Vars_to_Dict_Grid(self,varlist,grid=None,
+                              pftsum=False,mask_by=None,
+                              npindex=np.s_[:]):
         """
         Add vars to dictionary.
 
@@ -1987,6 +2085,8 @@ class Ncdata(object):
             incase of a tuple like (varname,{'lb':2000,'ub':5000}), the mask
             will first be generated using mathex.ndarray_mask_by_threshold,
             followed by mathex.ndarray_mask_smart_apply.
+        npindex: further index the data after using grid. Note the npindex
+            is applied after applying the mask_by.
         """
         final_ncdata = self._get_final_ncdata_by_flag(pftsum=pftsum)
         final_dict = {}
@@ -2013,7 +2113,8 @@ class Ncdata(object):
             else:
                 data = self.Get_GridValue(var,(grid[0],grid[2]),(grid[1],grid[3]),
                                          pftsum=pftsum)
-            final_dict[var] = treat_data_by_mask(data,mask_by)
+            data = treat_data_by_mask(data,mask_by)
+            final_dict[var] = data[npindex]
         return final_dict
 
     def Add_Vars_to_Dict_by_RegSum(self,varlist,mode='sum',pftsum=False,
