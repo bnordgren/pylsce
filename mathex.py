@@ -93,7 +93,6 @@ def group_by_interval(input_array,group_interval,output_list=None):
     ndarray with unique values as np.arange(1,len(group_interval))
 
 
-    
     group_by_interval()
     """
     array=input_array.copy()
@@ -1389,7 +1388,7 @@ def ndarray_arraylist_equal_shape(array_list):
     else:
         return True
 
-def DataFrame_from_flatten_arraydict(array_dic):
+def dataframe_from_flatten_arraydict(array_dic):
     """
     Create a DataFrame by flating input ndarrays and use their keys as
         the DataFrame colomn names.
@@ -1399,5 +1398,104 @@ def DataFrame_from_flatten_arraydict(array_dic):
     else:
         raise ValueError("arrays for input dict do not shape same shape!")
 
+def dataframe_extract_statistic_info(df,target_field=None,groupby_field='geoindex'):
+    """
+    Extract information for target_field in dataframe "df" grouped by
+        groupby_field.
+
+    Arguments:
+    ----------
+    1. target_field: the field for statistical information.
+    2. groupby_field: the field used to group data.
+
+    Notes:
+    ------
+    1. extracted statstical information are:
+        sum, mean, std, 95percentile, 50percentile(median), 5percentile
+    2. the groupby method will drop the null row in the groupby_field
+        automatically.
+    """
+    df_size_grp = df.groupby(groupby_field)
+    dft = df_size_grp[target_field].agg([np.sum,np.mean,np.std])
+    df_number = df_size_grp.size()
+    dft['number'] = df_number
+
+    dflist = []
+    statnamelist = ['per95','median','per05']
+    perlist = [95,50,5]
+    func_dict = {}
+    for name,per in zip(statnamelist,perlist):
+        dflist.append(df_size_grp[target_field].agg({name:lambda x: np.percentile(x.values,per)}))
+    dflist.extend([dft])
+    dfall = pa.concat(dflist,axis=1)
+    return dfall
 
 
+def dataframe_change_geoindex_to_tuple(df):
+    """
+    change the string type of geoindex to tuple.
+    """
+    #change geoindex from string to tuple
+    def change_string_to_tuple(dt):
+        if not isinstance(dt,str):
+            pass
+        else:
+            s1,s2 = dt.split(',')
+            return (int(s1[1:]),int(s2[1:-1]))
+
+    for i in df.index:
+        dt = df['geoindex'][i]
+        df['geoindex'][i] = change_string_to_tuple(dt)
+    return df
+
+def ndarray_string_categorize(array,mapdict):
+    """
+    Recategorize a 1D string array by the dictionary which indicates the
+        mapping between old strings and new strings.
+
+    Parameters:
+    -----------
+    mapdict: a dictionary with keys as the new string values, its values are
+        lists which give the scope of which the old string values should
+        be changed into new ones.
+
+    Example:
+    >>> s1 = np.array(','.join(string.lowercase).split(','))
+    >>> mapdict = dict(abcdefg=['a', 'b', 'c', 'd',
+        'e','f','g'],hijklmn=['h', 'i', 'j', 'k', 'l', 'm',
+        'n'],opqrst=['o', 'p', 'q', 'r', 's', 't'],uvwxyz=['u', 'v',
+        'w', 'x', 'y', 'z'])
+    >>> s2 = mathex.ndarray_string_categorize(s1,mapdict)
+
+    """
+    if array.ndim > 1:
+        raise ValueError("only accept one dimensional array!")
+    else:
+        if not isinstance(array[0],str):
+            raise TypeError("the first element type is not string!")
+        else:
+            pass
+
+    def mapfunc(element):
+        bool_find = False
+        for key,vlist in mapdict.items():
+            if element in vlist:
+                bool_find = True
+                return key
+        if not bool_find:
+            return 'NOCLASS'
+
+    return map(mapfunc,array)
+
+def list_string_categorize(list_of_string,mapdict):
+    """
+    Recategorize a list of string by mapdict.
+
+    See also,
+    ---------
+    mathex.ndarray_string_categorize
+    """
+    return ndarray_string_categorize(np.array(list_of_string),mapdict)
+
+def dataframe_categorize_column(df,original_column,new_column,interval_list):
+    pass
