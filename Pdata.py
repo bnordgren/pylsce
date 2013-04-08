@@ -321,7 +321,6 @@ def _creat_dict_of_tagaxes_by_tagseq_g(**kwargs):
         unit: used as ylabel for each subplot
         xlim: xlim
         subkw: kwarg in plt.subplots function
-
     """
     paradict = dict(force_axs=None,tagseq=None,
                          default_tagseq=None,
@@ -554,6 +553,41 @@ class Pdata(object):
         pd = Pdata()
         pd.add_entry_sharex_noerror_by_dic(dict(zip(taglist,datalist)))
         pd.set_tag_order(taglist)
+        return pd
+
+    @classmethod
+    def from_dataframe_groupby(cls,dfgroup,mapdict):
+        """
+        Create Pdata object from dataframe.groupby object.
+
+        Parameters:
+        -----------
+        mapdict: a dictionary specifying the mapping between
+            dataframe columns and the keynames in Pdata, i.e.,
+            ['x'/'y'/'yerrh'...]
+        """
+        def replace_dict_by_mapping(dfdict,mapdict):
+            """
+            Change the column name of dfdict to the names needed by
+                Pdata as in Pdata._data_base_keylist
+
+            Parameters:
+            -----------
+            mapdict: a dictionary specifying the mapping between
+                dataframe columns and the keynames in Pdata, i.e.,
+                ['x'/'y'/'yerrh'...]
+            """
+            datadict = Pdata._new_entry.copy()
+            for col in dfdict.keys():
+                if col in mapdict:
+                    datadict[mapdict[col]] = dfdict[col]
+            return datadict
+
+        pd = Pdata()
+        for tag,df in dfgroup:
+            dfdict = df.to_dict(outtype='list')
+            datadict = replace_dict_by_mapping(dfdict,mapdict)
+            pd.add_entry_by_dic(**{tag:datadict})
         return pd
 
     def add_entry_singleYerror(self,x,y,yerr,tag):
@@ -806,6 +840,25 @@ class Pdata(object):
     def _data_complete_check_all(self):
         for tag in self._taglist:
             _,_=self._data_complete_check_by_tag(tag)
+
+    def _check_empty_attribute(self,attr_name):
+        """
+        True if the attribute for all tags not specified.
+        """
+        if pb.ListSingleValue(self.list_attr(attr_name).values()) == {}:
+            return True
+        else:
+            return False
+
+    def _set_random_color_attribute(self,attr_name):
+        """
+        Set the relevant color attribute values to random values.
+        """
+        if self._check_empty_attribute(attr_name):
+            colorlist = _replace_none_colorlist(None,len(self._taglist))
+            self.add_attr_by_tag(**{attr_name:colorlist})
+        else:
+            pass
 
     def _get_err_by_tag(self,tag):
         """
@@ -1151,6 +1204,7 @@ class Pdata(object):
             for this pd object and you want to make a new scatter plot
             and "erase" the existing one
         """
+        self._set_random_color_attribute('scolor')
         axes=_replace_none_axes(axes)
         if erase==True:
             if hasattr(self,'Scatter_PathC') and self.Scatter_PathC != {}:
@@ -1172,6 +1226,7 @@ class Pdata(object):
             self.set_legend('scatter')
         return self.Scatter_PathC
 
+
     def plot(self,axes=None,legend=True,**kwargs):
         axes=_replace_none_axes(axes)
         if hasattr(self,'Line2D') and self.Line2D!={}:
@@ -1181,7 +1236,10 @@ class Pdata(object):
             line2D=axes.plot(tag_data['x'],tag_data['y'],label=tag_data['label'],**kwargs)
             self.Line2D[tag]=line2D[0]
         if legend == True:
-            self.set_legend('line')
+            try:
+                self.set_legend('line',taglab=False)
+            except KeyError:
+                self.set_legend('line',taglab=True)
         return self.Line2D
 
     def plot_stackline(self,axes=None,tagseq=None,colors=None,
@@ -1734,6 +1792,7 @@ class Pdata(object):
             column_major: True if parent tags are deployed in column-wise.
             unit: used as ylabel for each subplot
             xlim: xlim
+            subkw: kwarg in plt.subplots function
         '''
         axdic = _creat_dict_of_tagaxes_by_tagseq_g(
                         default_tagseq=self._taglist,**kwargs)
