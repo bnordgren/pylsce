@@ -807,19 +807,25 @@ def Set_Insetaxes(fig,ax,pos='ul',xpad=None,ypad=None,width=None,height=None,ins
 
 def Calc_Newaxes_Fraction(posor, split_fraction, direction='vertical'):
     """
-        To calculate the the x0,y0,width,height for the new axes that will take the place of the old axes, which position is given by argument posor.
+    To calculate the the x0,y0,width,height for the new axes that will
+        take the place of the old axes, which position is given by
+        argument posor.
 
     Parameters
     ----------
-    posor : list
-        a list, denoting the position of original axes that will be replaced by new axes. posor = [x0, y0, width, height]
-    split_fraction : list
-        indicate how the space of original axes is split among the new axes and the space between these new axes. its length should be number_of_new_axes
-        + number_of_new_axes-1, as there are "number_of_new_axes-1" blank spaces between these new axes.
+    posor : a list, denoting the position of original axes that will
+        be replaced by new axes. posor = [x0, y0, width, height]
+    split_fraction : list, indicate how the space of original axes is
+        split among the new axes and the space between these new axes.
+        its length should be number_of_new_axes + number_of_new_axes-1,
+        as there are "number_of_new_axes-1" blank spaces between
+        these new axes.
 
     Returns
     -------
-    out : a nx4 numpy array, with "n" as the number of new axes that are inserted. Each row indicates the new axes position: [x0, y0, width, height]
+    out : a nx4 numpy array, with "n" as the number of new axes that are
+        inserted. Each row indicates the new axes position:
+        [x0, y0, width, height]
 
     Example
     -------
@@ -835,9 +841,11 @@ def Calc_Newaxes_Fraction(posor, split_fraction, direction='vertical'):
         raise ValueError("The split_fraction list sum is not 1")
     else:
         newfrac = np.cumsum(np.array(split_fraction))
-        #newaxes_frac_array is a nX2 array, with each row indicating the fraction (to original axes that will be replaced) of the bottom and top axis.
+        #newaxes_frac_array is a nX2 array, with each row indicating the
+        #fraction (to original axes that will be replaced) of the bottom
+        #and top axis.
         newaxes_frac_array = np.hstack((np.array([0]),newfrac)).reshape(-1,2)
-        if direction == 'vertical':
+        if direction in ['vertical','v']:
             newaxes_figfrac = newaxes_frac_array * height
             for axes_frac_bottom_top in newaxes_figfrac:
                 x0new = x0
@@ -845,27 +853,58 @@ def Calc_Newaxes_Fraction(posor, split_fraction, direction='vertical'):
                 y0new = y0 + axes_frac_bottom_top[0]
                 heightnew = axes_frac_bottom_top[1] - axes_frac_bottom_top[0]
                 newpos_list.append([x0new, y0new, widthnew, heightnew])
+        elif direction in ['horizontal','h']:
+            newaxes_figfrac = newaxes_frac_array * width
+            for axes_frac_left_right in newaxes_figfrac:
+                x0new = x0 + axes_frac_left_right[0]
+                widthnew = axes_frac_left_right[1] - axes_frac_left_right[0]
+                y0new = y0
+                heightnew = height
+                newpos_list.append([x0new, y0new, widthnew, heightnew])
+        else:
+            raise ValueError("""direction could only be 'vertical/v' or 
+                                horizontal/h, input value is {0}"""
+                                .format(direction))
         return np.array(newpos_list)
 
 
 def Axes_Replace_Split_Axes(fig, axes_remove, split_fraction, direction='vertical'):
     """
-        Add sevearl new axes in the place of the axes_remove(the axes which will be replaced by new ones)
+        Add sevearl new axes in the place of the axes_remove
+            (the axes which will be replaced by new ones). This could be
+            used to set break axes.
 
     Parameters
     ----------
-    axes_remove
-        the axes who is to be removed and whose place will be used to build new axes
-    split_fraction
-        a list : the fraction of the new axes and the space between axes. the lenght should be "number_of_new_axes" + "number_of_new_axes-1". Note the fraction is
-        in terms of the original axes but not the figure
-    direction
-        'vertical' for vertical split, 'horizontal' for horizontal split.
+    axes_remove: the axes who is to be removed and whose place
+        will be used to build new axes
+    split_fraction: a list, the fraction of the new axes and the space
+        between axes. the lenght should be "number_of_new_axes" +
+        "number_of_new_axes-1". Note the fraction is in terms of the
+        original axes but not the figure.
+    direction:
+        'vertical' or 'v' for vertical split,
+        'horizontal' or 'h' for horizontal split.
 
     Returns
     -------
     out :
-        a list of axes, in order of bottom to top.
+        a list of axes, in order of bottom to top (in case of direction == 'v')
+        , or left to right (in case of direction == 'h').
+
+    See also,
+    ---------
+    g.Calc_Newaxes_Fraction
+    g.Axes_Set_Breakaxis
+
+    Example
+    -------
+    To set break axes:
+    >>> fig,axs = plt.subplots(nrows=2)
+    >>> bottom_ax, top_ax = g.Axes_Replace_Split_Axes(fig,axs[0],split_fraction=[0.36,0.04,0.6],direction='v')
+    >>> g.Axes_Set_Breakaxis(bottom_ax, top_ax, 0.01,0.03,'v')
+    >>> left_ax, right_ax = g.Axes_Replace_Split_Axes(fig,axs[1],split_fraction=[0.38,0.02,0.6],direction='h')
+    >>> g.Axes_Set_Breakaxis(left_ax, right_ax, 0.03,0.02,'h')
     """
     newaxes_list = []
     posor = axes_remove.get_position()
@@ -880,62 +919,112 @@ def Axes_Replace_Split_Axes(fig, axes_remove, split_fraction, direction='vertica
         newaxes_list.append(fig.add_axes([x0new, y0new, widthnew, heightnew]))
     return newaxes_list
 
-def Axes_Set_Breakaxis(bottom_ax,top_ax,h,v):
-    # hide the spines between ax and bottom_ax
-    top_ax.spines['bottom'].set_visible(False)
-    bottom_ax.spines['top'].set_visible(False)
-    top_ax.xaxis.tick_top()
-    top_ax.tick_params(labeltop='off') # don't put tick labels at the top
-    bottom_ax.xaxis.tick_bottom()
+def Axes_Set_Breakaxis(bottom_ax,top_ax,h,v,direction='v'):
+    """
+    Remove the spines for between the two break axes (either in vertical
+        or horizontal direction) and draw the "small break lines" between
+        them.
 
-    fig = top_ax.figure
-
+    Parameters:
+    -----------
+    direction: the direction of the two break axes, could either be
+        'horizontal/h' or 'vertical/v'
+    bottom_ax/top_ax: in case of direction == 'v', it means the bottom and
+        the top axes; in case of direction == 'h', it means the left and
+        the right axes.
+    h/v: the horizontal/vertical length of the small bar that appears between
+        the two break axes. 'h' for horizontal length and 'v' for vertical
+        length. Note they are always in unit of fractions of the BOTTOM/LEFT
+        axes.
+    """
     def get_axes_height(axes):
         pos = axes.get_position()
         return pos.bounds[3]
 
-    bottom_axheight = get_axes_height(bottom_ax)
-    top_axheight = get_axes_height(top_ax)
+    def get_axes_width(axes):
+        pos = axes.get_position()
+        return pos.bounds[2]
 
-    # arguments to pass plot, just so we don't keep repeating them
-    h1=h; v1=v*bottom_axheight/top_axheight
-    kwargs = dict(transform=top_ax.transAxes, color='k', clip_on=False)
-    top_ax.plot((-h1,+h1),(-v1,+v1), **kwargs) # top-left diagonal
-    top_ax.plot((1-h1,1+h1),(-v1,+v1), **kwargs) # top-right diagonal
+    if direction in ['vertical','v']:
+        # hide the spines between ax and bottom_ax
+        top_ax.spines['bottom'].set_visible(False)
+        bottom_ax.spines['top'].set_visible(False)
+        top_ax.xaxis.tick_top()
+        bottom_ax.xaxis.tick_bottom()
+        top_ax.tick_params(labeltop='off') # don't put tick labels at the top
 
-    h2=h; v2=v
-    kwargs.update(transform=bottom_ax.transAxes) # switch to the bottom axes
-    bottom_ax.plot((-h2,+h2),(1-v2,1+v2), **kwargs) # bottom-left diagonal
-    bottom_ax.plot((1-h2,1+h2),(1-v2,1+v2), **kwargs) # bottom-right diagonal
+        bottom_axheight = get_axes_height(bottom_ax)
+        top_axheight = get_axes_height(top_ax)
+        #plot for the top_ax
+        v1=v*bottom_axheight/top_axheight # as the v is given in unit of
+                                          # bottom_ax, we need to
+                                          # change into for the top_ax.
+        kwargs = dict(transform=top_ax.transAxes, color='k', clip_on=False)
+        top_ax.plot((-h,+h),(-v1,+v1), **kwargs) # top-left diagonal
+        top_ax.plot((1-h,1+h),(-v1,+v1), **kwargs) # top-right diagonal
+        #plot for the bottom_ax
+        kwargs.update(transform=bottom_ax.transAxes) # switch to the bottom axes
+        bottom_ax.plot((-h,+h),(1-v,1+v), **kwargs) # bottom-left diagonal
+        bottom_ax.plot((1-h,1+h),(1-v,1+v), **kwargs) # bottom-right diagonal
 
-def set_breakaxis2(top_ax,bottom_ax,h,v):
-    # hide the spines between ax and bottom_ax
-    top_ax.spines['bottom'].set_visible(False)
-    bottom_ax.spines['top'].set_visible(False)
-    top_ax.xaxis.tick_top()
-    top_ax.tick_params(labeltop='off') # don't put tick labels at the top
-    bottom_ax.xaxis.tick_bottom()
+    elif direction in ['horizontal','h']:
+        left_ax = bottom_ax
+        right_ax = top_ax
 
-    fig = top_ax.figure
-    topaxpos = top_ax.get_position()
-    print "topaxpos",topaxpos
-    x0 = topaxpos.x0
-    y0 = topaxpos.y0
-    x1 = topaxpos.x1
-    y1 = topaxpos.y1
-    l1 = mat.lines.Line2D([x0-h, y0-v], [x0+h, y0+v],transform=fig.transFigure, figure=fig, color='k')
-    l2 = mat.lines.Line2D([x1-h, y0-v], [x1+h, y0+v],transform=fig.transFigure, figure=fig, color='k')
+        left_ax.spines['right'].set_visible(False)
+        right_ax.spines['left'].set_visible(False)
+        left_ax.yaxis.tick_left()
+        right_ax.yaxis.tick_right()
+        right_ax.tick_params(labelleft='off') # don't put tick labels at the top
 
-    bottomaxpos = bottom_ax.get_position()
-    print "bottomaxpos",bottomaxpos
-    x0 = bottomaxpos.x0
-    y0 = bottomaxpos.y0
-    x1 = bottomaxpos.x1
-    y1 = bottomaxpos.y1
-    l3 = mat.lines.Line2D([x0-h, y1-v], [x0+h, y1+v],transform=fig.transFigure, figure=fig, color='k')
-    l4 = mat.lines.Line2D([x1-h, y1-v], [x1+h, y1+v],transform=fig.transFigure, figure=fig, color='k')
+        left_axwidth = get_axes_width(left_ax)
+        right_axwidth = get_axes_width(right_ax)
+        #plot for the right_ax
+        h1=h*left_axwidth/right_axwidth # as the h is given in unit of
+                                          # left_ax, we need to
+                                          # change into for the right_ax.
+        kwargs = dict(transform=right_ax.transAxes, color='k', clip_on=False)
+        right_ax.plot((-h1,+h1),(-v,+v), **kwargs) # right-bottom diagonal
+        right_ax.plot((-h1,+h1),(1-v,1+v), **kwargs) # right-top diagonal
+        #plot for the left_ax
+        kwargs.update(transform=left_ax.transAxes) # switch to the left axes
+        left_ax.plot((1-h,1+h),(-v,+v), **kwargs) # left-bottom diagonal
+        left_ax.plot((1-h,1+h),(1-v,1+v), **kwargs) # left-top diagonal
 
-    fig.lines.extend([l1,l2,l3,l4])
+
+
+
+
+
+
+#def set_breakaxis2(top_ax,bottom_ax,h,v):
+#    # hide the spines between ax and bottom_ax
+#    top_ax.spines['bottom'].set_visible(False)
+#    bottom_ax.spines['top'].set_visible(False)
+#    top_ax.xaxis.tick_top()
+#    top_ax.tick_params(labeltop='off') # don't put tick labels at the top
+#    bottom_ax.xaxis.tick_bottom()
+#
+#    fig = top_ax.figure
+#    topaxpos = top_ax.get_position()
+#    print "topaxpos",topaxpos
+#    x0 = topaxpos.x0
+#    y0 = topaxpos.y0
+#    x1 = topaxpos.x1
+#    y1 = topaxpos.y1
+#    l1 = mat.lines.Line2D([x0-h, y0-v], [x0+h, y0+v],transform=fig.transFigure, figure=fig, color='k')
+#    l2 = mat.lines.Line2D([x1-h, y0-v], [x1+h, y0+v],transform=fig.transFigure, figure=fig, color='k')
+#
+#    bottomaxpos = bottom_ax.get_position()
+#    print "bottomaxpos",bottomaxpos
+#    x0 = bottomaxpos.x0
+#    y0 = bottomaxpos.y0
+#    x1 = bottomaxpos.x1
+#    y1 = bottomaxpos.y1
+#    l3 = mat.lines.Line2D([x0-h, y1-v], [x0+h, y1+v],transform=fig.transFigure, figure=fig, color='k')
+#    l4 = mat.lines.Line2D([x1-h, y1-v], [x1+h, y1+v],transform=fig.transFigure, figure=fig, color='k')
+#
+#    fig.lines.extend([l1,l2,l3,l4])
 
 def Get_Axes_Ratio(ax):
     """
