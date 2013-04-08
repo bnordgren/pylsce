@@ -76,8 +76,8 @@ def ListSingleValue(d):
     for i in d:
         if i!=d[0]:
             flag=False
-            break
-    return flag
+            return flag
+    return d[0]
 
 
 def iteflat(inlist):
@@ -657,6 +657,7 @@ def Dic_Remove_By_Subkeylist(indic,keylist):
         if key in keylist:
             del outdic[key]
     return outdic
+
 
 def List_Duplicate_Check(inlist):
     return any(inlist.count(x) > 1 for x in inlist)
