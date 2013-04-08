@@ -1523,25 +1523,160 @@ class Ncdata(object):
             print "{0} : {1}".format(attr_name,self.d0.__dict__[varname].__dict__[attr_name])
         print "Reduced dimension: {0}".format(self.d1.__dict__[varname].shape)
 
-    def map(self,mapvarname=None,forcedata=None,mapdim=None,agremode=None,pyfunc=None,mask=None,unit=None,title=None,pftsum=False,mask_value=None,\
-             projection='cyl',mapbound='all',gridstep=(30,30),shift=False,cmap=None,map_threshold=None,colorbarlabel=None,levels=None,data_transform=False,ax=None,\
-             colorbardic={}):
-        """
-        This is an implementation of ncdatamap
-        """
-        if pftsum==False:
-            d0,d1=self.d0,self.d1
-        else:
-            d0,d1=self.d0,self.pftsum
+    @staticmethod
+    def _apply_function_ndarray(mapvar,pyfunc=None):
+        if pyfunc!=None:
+            if callable(pyfunc):
+                mapvar=pyfunc(mapvar)
+            elif isinstance(pyfunc,list) and isfunction(pyfunc[0]):
+                for subpyfunc in pyfunc:
+                    mapvar=subpyfunc(mapvar)
+            else:
+                mapvar=mapvar*pyfunc
+        return mapvar
 
-        mlist= ncdatamap(d0,d1,latvarname=self.latvar_name,lonvarname=self.lonvar_name,mapvarname=mapvarname,forcedata=forcedata, mapdim=mapdim, \
-                         agremode=agremode,pyfunc=pyfunc,\
-                         mask=mask,mask_value=mask_value,unit=unit,title=title,\
-                         projection=projection,mapbound=mapbound,gridstep=gridstep,shift=shift,cmap=cmap,map_threshold=map_threshold,\
-                         colorbarlabel=colorbarlabel,levels=levels,data_transform=data_transform,ax=ax,colorbardic=colorbardic)
-        self.m = mlist[-3]
-        self.cbar = mlist[-2]
-        self.drawdata = mlist[-1]
+    def _retrieve_data_for_map(self,mapvarname=None,
+                               grid=None,pftsum=False,
+                               forcedata=None,mapdim=None,
+                               agremode=None,pyfunc=None,
+                               mask=None,mask_value=None,
+                               npindex=np.s_[:]):
+
+        """
+        grid: should be a tuple of (lat1,lon1,lat2,lon2)
+        """
+        final_ncdata = self._get_final_ncdata_by_flag(pftsum=pftsum)
+
+        #read mapvar data and prepare for mapping
+        if mapvarname==None:
+            if forcedata == None:
+                raise ValueError("mapvarname and forcedata both as None!")
+            else:
+                mapvar = forcedata
+        else:
+            if isinstance(mapvarname,str):
+                if forcedata==None:
+                    mapvar=final_ncdata.__dict__[mapvarname]
+                else:
+                    mapvar=forcedata
+            else:
+                raise ValueError('mapvarname must be string type')
+        if mapvar.ndim==2 and (mapdim!=None or agremode!=None):
+            raise ValueError("""{0} has only 2 valid dimension but
+                             mapdim or agremode is not None""".format(mapvarname))
+        elif mapvar.ndim==3:
+            if agremode==None and mapdim==None:
+                raise ValueError("""{0} has 3 valid dimension, cannot
+                                 leave both mapdim and agremode as None"""
+                                 .format(mapvarname))
+            #we want to transform data directly for plotting
+            elif agremode != None:
+                #make sum or mean of monthly data
+                if agremode=='sum':
+                    mapvar=mathex.m2ysum(mapvar)
+                elif agremode=='mean':
+                    mapvar=mathex.m2ymean(mapvar)
+                elif agremode=='fsum':
+                    mapvar=np.ma.sum(mapvar,axis=0)
+                elif agremode=='fmean':
+                    mapvar=np.ma.mean(mapvar,axis=0)
+
+                #extract data for only specified dimension
+                if mapdim!=None:
+                    #the original mapvar has 3 dim with first dim of 12.
+                    if mapvar.ndim==2:
+                        raise ValueError("""{0} has 3 valid dimension with first
+                                         dim size as 12, cannot specify agremode
+                                         and mapdim simultaneously"""
+                                         .format(mapvarname))
+                    else: #mapvar.ndim==3
+                        mapvar=mapvar[mapdim,:,:]
+                #error handling when mapdim==None
+                else:
+                    if mapvar.ndim==2: #the original mapvar has 3 dim with first dim of 12.
+                        pass
+                    else: #mapvar.ndim==3
+                        raise ValueError("""the dimension after data
+                                         transformation is {0}, must specify
+                                         mapdim to plot""".format(mapvar.shape))
+            #plot specified dimension for data without transformation
+            else:
+                mapvar=mapvar[mapdim,:,:]
+        elif mapvar.ndim >= 4:
+            mapvar = mapvar[npindex]
+
+        #apply the defined function on data
+        mapvar = self._apply_function_ndarray(mapvar,pyfunc)
+
+        #apply mask
+        if mask!=None:
+            mapvar=mathex.ndarray_mask_smart_apply(mapvar,mask)
+        if mask_value != None:
+            mapvar=np.ma.masked_equal(mapvar,mask_value)
+
+        #apply grid
+        latvar,lonvar = self.Get_latlon_by_Grid(grid=grid)
+        if grid == None:
+            pass
+        else:
+            (lon_index_min, lon_index_max, lat_index_min, lat_index_max) = \
+                self.find_index_by_vertex((grid[0],grid[2]),(grid[1],grid[3]))
+            mapvar = mapvar[lat_index_min:lat_index_max+1,
+                            lon_index_min:lon_index_max+1]
+
+        #finally, if lat is provide in increasing sequence, flip over the data.
+        if latvar[0]<latvar[-1]:
+            latvar=latvar[::-1]
+            mapvar=np.flipud(mapvar)
+
+        return latvar,lonvar,mapvar
+
+    def map(self,mapvarname,
+            forcedata=None,mapdim=None,
+            agremode=None,pyfunc=None,mask=None,
+            unit=None,title=None,pftsum=False,mask_value=None,
+            grid=None,npindex=np.s_[:],
+            projection='cyl',mapbound='all',gridstep=(30,30),
+            shift=False,cmap=None,map_threshold=None,
+            colorbarlabel=None,levels=None,
+            data_transform=False,ax=None,
+            colorbardic={},
+            maptype='con',
+            cbarkw={},
+            **kwargs):
+        """
+        This is an implementation of bamp.mapcontourf
+        """
+        mlat,mlon,mdata = self._retrieve_data_for_map(
+                               mapvarname=mapvarname,
+                               grid=grid, pftsum=pftsum,
+                               forcedata=forcedata, mapdim=mapdim,
+                               agremode=agremode, pyfunc=pyfunc,
+                               mask=mask, mask_value=mask_value,
+                               npindex=npindex)
+
+        if maptype == 'con':
+            mapfunc = getattr(bmap,'mapcontourf')
+        elif maptype == 'img':
+            mapfunc = getattr(bmap,'mapimshow')
+        else:
+            raise ValueError("Unknow map type!")
+
+        mcon = mapfunc(data=mdata,lat=mlat,lon=mlon,
+                       projection=projection,
+                       mapbound=mapbound, gridstep=gridstep,
+                       shift=shift, cmap=cmap,
+                       map_threshold=map_threshold,
+                       colorbarlabel=colorbarlabel,
+                       levels=levels,
+                       data_transform=data_transform,
+                       ax=ax,colorbardic=colorbardic,
+                       cbarkw=cbarkw,
+                       **kwargs)
+
+        self.mcon = mcon
+        self.m = mcon.m
+        self.cbar = mcon.cbar
 
     def imshowmap(self,varname,forcedata=None,pftsum=False,ax=None,projection='cyl',mapbound='all',gridstep=(30,30),shift=False,colorbar=True,
                   colorbarlabel=None,*args,**kwargs):
@@ -1725,13 +1860,35 @@ class Ncdata(object):
                                     ))
         return index_latlon_tuple_list
 
-    def Get_latlon_by_vertex(self,(vlat1,vlat2),(vlon1,vlon2)):
+
+    def _get_latlon_by_vertex(self,(vlat1,vlat2),(vlon1,vlon2)):
         (lon_index_min, lon_index_max, lat_index_min, lat_index_max) = \
             self.find_index_by_vertex((vlat1,vlat2),(vlon1,vlon2))
         sublat = self.lat[lat_index_min:lat_index_max+1]
         sublon = self.lon[lon_index_min:lon_index_max+1]
         return (sublat,sublon)
 
+    def _get_var_by_grid(self,varname,pftsum=False,grid=None):
+        """
+        Only for internal use.
+        """
+        final_ncdata = self._get_final_ncdata_by_flag(pftsum=pftsum)
+        if grid == None:
+            data = final_ncdata.__dict__[var]
+        else:
+            data = self.Get_GridValue(varname,(grid[0],grid[2]),(grid[1],grid[3]),
+                                     pftsum=pftsum)
+        return data
+    def Get_latlon_by_Grid(self,grid=None):
+        """
+        grid: should be a tuple of (lat1,lon1,lat2,lon2)
+        """
+        if grid != None:
+            (sublat,sublon)=self._get_latlon_by_vertex((grid[0],grid[2]),
+                                                      (grid[1],grid[3]))
+        else:
+            (sublat,sublon)=(self.lat,self.lon)
+        return sublat,sublon
 
     def Get_GridValue(self,var,(vlat1,vlat2),(vlon1,vlon2), pftsum=False):
         (lon_index_min, lon_index_max, lat_index_min, lat_index_max) = find_index_by_vertex(self.lonvar, self.latvar, (vlon1,vlon2), (vlat1,vlat2))
@@ -1742,12 +1899,6 @@ class Ncdata(object):
                 raise ValueError("please do pftsum operation first!")
         else:
             return self.d1.__dict__[var][..., lat_index_min:lat_index_max+1, lon_index_min:lon_index_max+1]
-        #return pb.Get_GridValue(self.d0,var,(self.lat_name,vlat1,vlat2),(self.lon_name,vlon1,vlon2))
-
-
-    #def check_longname_unit()
-
-
 
     def Plot_PointValue(self,var,(vlat,vlon),ax=None,ylab=False,pyfunc=None,pftsum=False,**kwargs):
         if ax==None:
@@ -1937,9 +2088,7 @@ class Ncdata(object):
         ydic = self.Add_Vars_to_Dict_Grid(varlist,grid=grid,mask_by=mask_by,
                                      pftsum=pftsum,npindex=npindex)
         md.add_entry_array_bydic(ydic)
-        (sublat,sublon)=self.Get_latlon_by_vertex((grid[0],grid[2]),
-                                                  (grid[1],grid[3]))
-
+        (sublat,sublon) = self.Get_latlon_by_Grid(grid)
         md.add_attr_by_tag(lat=sublat,lon=sublon)
         return md
 
@@ -2071,6 +2220,7 @@ class Ncdata(object):
             pd.plot_split_axes(self,plotkw=plotkw,**splitkw)
         return pd
 
+
     def Add_Vars_to_Dict_Grid(self,varlist,grid=None,
                               pftsum=False,mask_by=None,
                               npindex=np.s_[:]):
@@ -2080,11 +2230,15 @@ class Ncdata(object):
         Parameters:
         -----------
         grid: should be a tuple of (lat1,lon1,lat2,lon2)
-        mask_by: in case of a boolean numpy array, the mask will be directly
-            apply on the retrieved array by using mathex.ndarray_mask_smart_apply;
-            incase of a tuple like (varname,{'lb':2000,'ub':5000}), the mask
-            will first be generated using mathex.ndarray_mask_by_threshold,
-            followed by mathex.ndarray_mask_smart_apply.
+        mask_by: 
+            1. in case of a boolean numpy array, the mask will be directly
+               apply on the retrieved array by using
+               mathex.ndarray_mask_smart_apply;
+            2. in case of a tuple like (varname,{'lb':2000,'ub':5000}), the mask
+               will first be generated using mathex.ndarray_mask_by_threshold,
+               followed by mathex.ndarray_mask_smart_apply.
+            3. in case of a function, it could be like
+                lambda x:np.ma.masked_invalid(x)
         npindex: further index the data after using grid. Note the npindex
             is applied after applying the mask_by.
         """
@@ -2103,15 +2257,14 @@ class Ncdata(object):
                     mathex.ndarray_mask_by_threshold(
                         final_ncdata.__dict__[varname],map_threshold)
                 return mathex.ndarray_mask_smart_apply(data,mask_vardata.mask)
+            elif callable(mask_by):
+                return mask_by(data)
             else:
-                raise ValueError("wrong mask_by value")
+                raise TypeError("wrong mask_by type")
 
 
         for var in varlist:
-            if grid == None:
-                data = final_ncdata.__dict__[var]
-            else:
-                data = self.Get_GridValue(var,(grid[0],grid[2]),(grid[1],grid[3]),
+            data = self._get_var_by_grid(var,grid=grid,
                                          pftsum=pftsum)
             data = treat_data_by_mask(data,mask_by)
             final_dict[var] = data[npindex]
