@@ -2348,6 +2348,22 @@ class Mdata(Pdata):
         md.add_entry_array_bydic(ydic)
         return md
 
+    @classmethod
+    def from_ndarray(cls,arr,tagaxis=0,taglist=None):
+        if np.ndim(arr) != 3:
+            raise ValueError('''array ndim is {0}, only 3 is valid'''.
+                                format(arr.ndim))
+        if tagaxis == 0:
+            datalist = [arr[i] for i in range(arr.shape[0])]
+        elif tagaxis == 1:
+            datalist = [arr[:,i,:] for i in range(arr.shape[1])]
+        elif tagaxis == 2:
+            datalist = [arr[...,i] for i in range(arr.shape[2])]
+        else:
+            raise ValueError("unknown tagaxis!")
+        taglist = _replace_none_by_given(taglist,np.arange(len(datalist))+1)
+        return Mdata.from_dict_of_array(dict(zip(taglist,datalist)))
+
     def add_entry_share_latlon_bydic(self,ydic,lat=None,lon=None):
         for tag,ydata in ydic.items():
             self.add_tag(tag)
