@@ -43,12 +43,20 @@ class gmap(object):
         >>> m.scatter(x,y,s=30,marker='o',color='r')
     """
     def __init__(self,ax=None,projection='cyl',mapbound='all',lat=None,lon=None,
-                 gridstep=(30,30),half_degree=True,**kwargs):
+                 gridstep=(30,30),**kwargs):
 
         ax = tools._replace_none_axes(ax)
         lat = tools._replace_none_by_given(lat,np.arange(89.75,-89.8,-0.5))
         lon = tools._replace_none_by_given(lon,np.arange(-179.75,179.8,0.5))
 
+        latstep = lat[0] - lat[1]
+        if latstep <= 0:
+            raise TypeError("lat input is increasing!")
+        else:
+            if latstep == 0.5:
+                half_degree = True
+            else:
+                half_degree = False
 
         if projection=='cyl':
             if isinstance(mapbound,dict):

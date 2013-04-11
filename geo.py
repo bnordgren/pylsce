@@ -1,8 +1,11 @@
+#!/usr/bin/python
+
 from osgeo import ogr
 import matplotlib as mat
 import pandas as pa
 import numpy as np
 import Pdata
+import gnc
 
 def _check_df_inner_out_ring_validity(df):
     if not isinstance(df,pa.DataFrame):
@@ -267,6 +270,10 @@ def dataframe_build_geoindex_from_lat_lon(df,lat_name='lat',
         The latitude/longitude pairs falling outside the grid will
         have geoindex values as np.nan.
 
+    Returns:
+    --------
+    dataframe
+
     Parameters:
     -----------
     df: input dataframe.
@@ -278,13 +285,12 @@ def dataframe_build_geoindex_from_lat_lon(df,lat_name='lat',
         vlat = df[lat_name][i]
         vlon = df[lon_name][i]
         try:
-            df['geoindex'][i] = gnc.find_index_by_point(lat_range,
-                                                        lon_range,(vlat,vlon))
+            df['geoindex'][i] = gnc.find_index_by_point(lat,lon,(vlat,vlon))
         except ValueError:
             df['geoindex'][i] = np.nan
     return df
 
-def mdata_by_geoindex_dataframe(df,shape=(360,720),mask=None):
+def mdata_by_geoindex_dataframe(df,shape=None,mask=None):
     """
     Transfer the geoindexed dataframe into Pdata.Mdata for plotting
         or writing out ot NetCDF file.
@@ -298,6 +304,8 @@ def mdata_by_geoindex_dataframe(df,shape=(360,720),mask=None):
     ------
     1. the df.index must be tuples.
     """
+    if shape == None:
+        raise ValueError('shape must be provided!')
     ydic = {}
     for name in df.columns.tolist():
         data = np.ones(shape)*np.nan

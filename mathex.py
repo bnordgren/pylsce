@@ -1403,6 +1403,10 @@ def dataframe_extract_statistic_info(df,target_field=None,groupby_field='geoinde
     Extract information for target_field in dataframe "df" grouped by
         groupby_field.
 
+    Returns:
+    --------
+    dataframe with the groupby_field as index.
+
     Arguments:
     ----------
     1. target_field: the field for statistical information.
@@ -1459,6 +1463,11 @@ def ndarray_string_categorize(array,mapdict):
         lists which give the scope of which the old string values should
         be changed into new ones.
 
+    Notes:
+    ------
+    1. The original string that are not included in the mapdict.values()
+        will have value of "NOCLASS"
+
     Example:
     >>> s1 = np.array(','.join(string.lowercase).split(','))
     >>> mapdict = dict(abcdefg=['a', 'b', 'c', 'd',
@@ -1497,5 +1506,22 @@ def list_string_categorize(list_of_string,mapdict):
     """
     return ndarray_string_categorize(np.array(list_of_string),mapdict)
 
-def dataframe_categorize_column(df,original_column,new_column,interval_list):
-    pass
+def dataframe_MultiIndex_to_column(df):
+    """
+    Build a new dataframe with the columns as the MultiIndex first level
+        index.
+    """
+    if len(df.columns) > 1:
+        raise ValueError("input MultiIndex dataframe column length > 1")
+    else:
+        column_name = list(df.columns)[0]
+        first_index_list = list(np.unique(df.index.get_level_values(0)))
+        dft = df.ix[first_index_list[0]]
+        dft = dft.rename(columns={column_name:first_index_list[0]})
+        for other_index_name in first_index_list[1:]:
+            dft[other_index_name] = df.ix[other_index_name][column_name]
+        return dft
+
+
+
+

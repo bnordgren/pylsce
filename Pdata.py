@@ -1765,7 +1765,14 @@ class Pdata(object):
         return artist_dic
 
 
-    def setp_tag(self,plottype='line',tagkw=False,**nested_attr_tag_value_dic):
+    def setp_tag(self,plottype='all',tagkw=False,**nested_attr_tag_value_dic):
+        """
+        Set the property by tag.
+
+        Parameters:
+        -----------
+        plottype: could be 'line','sca'/'scatter','bar','all.'
+        """
         artist_dic = self._get_artist_dic_by_plottype(plottype)
         if isinstance(artist_dic,dict):
             self._setp_by_tag(artist_dic,tagkw=tagkw,**nested_attr_tag_value_dic)

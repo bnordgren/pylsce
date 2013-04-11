@@ -95,14 +95,14 @@ def find_index_by_point(lat,lon,(vlat,vlon)):
     """
     latstep = lat[0] - lat[1]
     if latstep <= 0:
-        raise ValueError("lat input is increasing!")
+        raise TypeError("lat input is increasing!")
     else:
         lat_big = lat[0] + latstep/2.
         lat_small = lat[-1] - latstep/2.
 
     lonstep = lon[1] - lon[0]
     if lonstep <= 0:
-        raise ValueError("lon input is decreasing!")
+        raise TypeError("lon input is decreasing!")
     else:
         lon_big = lon[-1] + lonstep/2.
         lon_small = lon[0] - lonstep/2.
@@ -1874,7 +1874,7 @@ class Ncdata(object):
         """
         final_ncdata = self._get_final_ncdata_by_flag(pftsum=pftsum)
         if grid == None:
-            data = final_ncdata.__dict__[var]
+            data = final_ncdata.__dict__[varname]
         else:
             data = self.Get_GridValue(varname,(grid[0],grid[2]),(grid[1],grid[3]),
                                      pftsum=pftsum)
@@ -2230,7 +2230,7 @@ class Ncdata(object):
         Parameters:
         -----------
         grid: should be a tuple of (lat1,lon1,lat2,lon2)
-        mask_by: 
+        mask_by:
             1. in case of a boolean numpy array, the mask will be directly
                apply on the retrieved array by using
                mathex.ndarray_mask_smart_apply;
@@ -2287,11 +2287,15 @@ class Ncdata(object):
             string: used to denote the varialbe name which means the area in
                 the nc file.
         grid: should be a tuple of (lat1,lon1,lat2,lon2)
-        mask_by: in case of a boolean numpy array, the mask will be directly
-            apply on the retrieved array by using mathex.ndarray_mask_smart_apply;
-            incase of a tuple like (varname,{'lb':2000,'ub':5000}), the mask
-            will first be generated using mathex.ndarray_mask_by_threshold,
-            followed by mathex.ndarray_mask_smart_apply.
+        mask_by:
+            1. in case of a boolean numpy array, the mask will be directly
+               apply on the retrieved array by using
+               mathex.ndarray_mask_smart_apply;
+            2. in case of a tuple like (varname,{'lb':2000,'ub':5000}), the mask
+               will first be generated using mathex.ndarray_mask_by_threshold,
+               followed by mathex.ndarray_mask_smart_apply.
+            3. in case of a function, it could be like
+                lambda x:np.ma.masked_invalid(x)
         """
         dic = self.Add_Vars_to_Dict_Grid(varlist,grid=grid,pftsum=pftsum,
                                          mask_by=mask_by)
