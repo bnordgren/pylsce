@@ -1164,6 +1164,14 @@ class Pdata(object):
         pdata=Pdata(targetdic)
         return pdata
 
+    def __getitem__(self,taglist):
+        """
+        simple implementation of Pdata.Pdata.regroup_data_by_tag.
+        """
+        if isinstance(taglist,str):
+            taglist = [taglist]
+        return self.regroup_data_by_tag(taglist)
+
     def regroup_data_by_tag_keyword(self,tag_keyword):
         tags=self._taglist
         return self.regroup_data_by_tag(FilterStringList(tag_keyword,tags))
@@ -2081,9 +2089,9 @@ def from_DataFrame(df,df_func=None,index_func=None,force_sharex=None):
         df = df_func(df)
     if force_sharex == None:
         if index_func == None:
-            pd.add_entry_sharex_noerror_by_dic(df,x=df.index)
+            pd.add_entry_sharex_noerror_by_dic(df,x=df.index.values)
         else:
-            pd.add_entry_sharex_noerror_by_dic(df,x=index_func(df.index))
+            pd.add_entry_sharex_noerror_by_dic(df,x=index_func(df.index.values))
     else:
         pd.add_entry_sharex_noerror_by_dic(df,x=force_sharex)
     pd.set_tag_order(list(df.columns))
