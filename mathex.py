@@ -1388,7 +1388,7 @@ def ndarray_arraylist_equal_shape(array_list):
     else:
         return True
 
-def dataframe_from_flatten_arraydict(array_dic):
+def dataframe_by_flatting_arraydict(array_dic):
     """
     Create a DataFrame by flating input ndarrays and use their keys as
         the DataFrame colomn names.
@@ -1492,7 +1492,10 @@ def ndarray_string_categorize(array,mapdict):
                 bool_find = True
                 return key
         if not bool_find:
-            return 'NOCLASS'
+            if element == 'nan':
+                return np.nan
+            else:
+                return 'NOCLASS'
 
     return map(mapfunc,array)
 

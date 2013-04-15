@@ -290,7 +290,7 @@ def dataframe_build_geoindex_from_lat_lon(df,lat_name='lat',
             df['geoindex'][i] = np.nan
     return df
 
-def mdata_by_geoindex_dataframe(df,shape=None,mask=None):
+def mdata_by_geoindex_dataframe(df,shape=None,mask=None,empty_value=np.nan):
     """
     Transfer the geoindexed dataframe into Pdata.Mdata for plotting
         or writing out ot NetCDF file.
@@ -299,6 +299,8 @@ def mdata_by_geoindex_dataframe(df,shape=None,mask=None):
     ----------
     shape: the shape of array to be constructed, limited to 2D array.
     mask: the mask that's to be applied.
+    empty_value: the value used to fill the empty gridcells, i.e., gridcells
+        that do not appear in geoindex/index column.
 
     Notes:
     ------
@@ -308,7 +310,7 @@ def mdata_by_geoindex_dataframe(df,shape=None,mask=None):
         raise ValueError('shape must be provided!')
     ydic = {}
     for name in df.columns.tolist():
-        data = np.ones(shape)*np.nan
+        data = np.ones(shape)*empty_value
         for index,value in df[name].iterkv():
             if not isinstance(index,tuple):
                 raise TypeError("index {0} not tuple".format(index))

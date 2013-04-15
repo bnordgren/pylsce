@@ -408,7 +408,7 @@ class Pdata(object):
     _error_attr_base_keylist=['efmt','ecolor','elinewidth','capsize',
                               'barsabove','lolims','uplims','xlolims',
                               'xuplims']
-    _bar_attr_base_keylist=['bcolor']
+    _bar_attr_base_keylist=[]
     _plot_attr_dic=dict(scatter=_scatter_attr_base_keylist,
                         errorbar=_error_attr_base_keylist,
                         bar=_bar_attr_base_keylist)
@@ -438,9 +438,7 @@ class Pdata(object):
                  'svmin':None, \
                  'svmax':None, \
                  }
-    _bar_attr_default={        \
-                'bcolor':'b'
-                }
+    _bar_attr_default={}
 
     #set default extra plot attribute keyword argument values
     _plot_attr_default={}
@@ -589,6 +587,13 @@ class Pdata(object):
             datadict = replace_dict_by_mapping(dfdict,mapdict)
             pd.add_entry_by_dic(**{tag:datadict})
         return pd
+
+    @classmethod
+    def from_dict(cls,dic,x=None):
+        pd = Pdata()
+        pd.add_entry_sharex_noerror_by_dic(dic,x=x)
+        return pd
+
 
     def add_entry_singleYerror(self,x,y,yerr,tag):
         self.add_tag(tag)
@@ -845,7 +850,8 @@ class Pdata(object):
         """
         True if the attribute for all tags not specified.
         """
-        if pb.ListSingleValue(self.list_attr(attr_name).values()) == {}:
+        single_value = pb.ListSingleValue(self.list_attr(attr_name).values())
+        if single_value == {} or single_value.values() == [None]:
             return True
         else:
             return False
@@ -1244,10 +1250,10 @@ class Pdata(object):
             line2D=axes.plot(tag_data['x'],tag_data['y'],label=tag_data['label'],**kwargs)
             self.Line2D[tag]=line2D[0]
         if legend == True:
-            try:
-                self.set_legend('line',taglab=False)
-            except KeyError:
+            if self._check_empty_attribute('label'):
                 self.set_legend('line',taglab=True)
+            else:
+                self.set_legend('line',taglab=False)
         return self.Line2D
 
     def plot_stackline(self,axes=None,tagseq=None,colors=None,
@@ -1527,7 +1533,7 @@ class Pdata(object):
         kwargs=Dic_Remove_By_Subkeylist(kwargs,Pdata._plot_attr_keylist_all)
         print '_gbar',kwargs
         print '_bar',attr_dic
-        return axes.bar(left, height, width=width, bottom=bottom,color=attr_dic['bcolor'], label=label, **kwargs)
+        return axes.bar(left, height, width=width, bottom=bottom, label=label, **kwargs)
 
     def bar(self,axes=None,**kwargs):
         axes=_replace_none_axes(axes)
@@ -1975,6 +1981,7 @@ class Pdata(object):
         pickle the self.data to filename; the surfix '.pd' could be used as indication as pdata
         """
         pb.pfdump(self.data,filename)
+
 
     @classmethod
     def merge(cls,*pdlist):
@@ -2449,6 +2456,7 @@ class Mdata(Pdata):
 
         Parameters:
         -----------
+        mconfkw: bmap.mapcontourf kwargs.
         c.f. bmap.mapcontourf
         kwargs:
             force_axs: force the axes.
@@ -2512,7 +2520,7 @@ class Mdata(Pdata):
             to NetCDF file.
         Notes:
         ------
-        1. "long_name" or "unit/units" attributes, when they're present,
+        1. "long_name" and "unit" attributes, when they're present,
             will be used as the variable attributes of the output nc file.
 
         kwargs:
@@ -2535,10 +2543,14 @@ class Mdata(Pdata):
             attr_kwargs = {}
             if 'unit' in tagdic:
                 attr_kwargs['units'] = tagdic['unit']
-            elif 'long_name' in tagdic:
-                attr_kwargs['long_name'] = tagdic['longname']
+            if 'long_name' in tagdic:
+                attr_kwargs['long_name'] = tagdic['long_name']
+            if 'varname' in tagdic:
+                varname = tagdic['varname']
+            else:
+                varname = tag
             data = self.data[tag]['array']
-            ncfile.add_var_smart_ndim(tag,ndim,data,**attr_kwargs)
+            ncfile.add_var_smart_ndim(varname,ndim,data,**attr_kwargs)
         ncfile.close()
 
 

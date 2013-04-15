@@ -551,8 +551,18 @@ class NcWrite(object):
         """
         varinfo_keys=['varname', 'dim_tuple', 'dtype', 'varvalue']
         varinfo = dict(zip(varinfo_keys, varinfo_value))
-        var = self.rootgrp.createVariable(varinfo['varname'], varinfo['dtype'], varinfo['dim_tuple'])
         vardata = varinfo['varvalue']
+
+        #set missing_value,_FillValue
+        if np.ma.isMA(vardata):
+            missing_value = vardata.fill_value
+        else:
+            missing_value = 1.0e+20
+
+        var = self.rootgrp.createVariable(varinfo['varname'],
+                                          varinfo['dtype'],
+                                          varinfo['dim_tuple'],
+                                          fill_value=missing_value)
 
         #handle the case when len(time) == 1
         if var.ndim - vardata.ndim == 1 and var.shape[0] == 1:
@@ -560,11 +570,8 @@ class NcWrite(object):
         else:
             var[:] = vardata
 
-        if np.ma.isMA(vardata):
-            var.missing_value = vardata.fill_value
-        else:
-            var.missing_value = 1.e+20
-        #var.setncattr('_FillValue',var.missing_value)
+        #set also the missing_value attribute for the variable
+        var.setncattr('missing_value',missing_value)
 
         #copy the variable attributes from another netCDF4.Variable object.
         if isinstance(attr_copy_from, nc.Variable):
@@ -2245,6 +2252,11 @@ class Ncdata(object):
         final_ncdata = self._get_final_ncdata_by_flag(pftsum=pftsum)
         final_dict = {}
 
+
+        #define some special mask_by functions
+        if mask_by == 'invalid':
+            mask_by = lambda arr:np.ma.masked_invalid(arr)
+
         def treat_data_by_mask(data,mask_by):
             if mask_by == None:
                 return data
@@ -2344,6 +2356,24 @@ class Ncdata(object):
             dic[key] = final_data
 
         return dic
+
+    def Add_Vars_to_dataframe(self,varlist,mode='sum',pftsum=False,
+                              mask_by=None,
+                              area_weight=False,
+                              unit_func=None,
+                              grid=None,
+                              index=None):
+        """
+        This is a simple wrapper of Add_Vars_to_Dict_by_RegSum
+        """
+        dic = self.Add_Vars_to_Dict_by_RegSum(varlist,mode=mode,
+                                              pftsum=pftsum,
+                                              mask_by=mask_by,
+                                              area_weight=area_weight,
+                                              unit_func=unit_func,
+                                              grid=grid)
+        return pa.DataFrame(dic,index=index)
+
 
 def nc_get_var_value_grid(ncfile,varname,(vlat1,vlat2),(vlon1,vlon2),
                           pftsum=False):

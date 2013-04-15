@@ -324,7 +324,8 @@ def _generate_map_prepare_data(data=None,lat=None,lon=None,
     #prepare the data for contourf
     pdata,plotlev,plotlab,extend,trans_base_list = \
         _transform_data(pdata,levels,data_transform)
-    return mgmap,pdata,plotlev,plotlab,extend,trans_base_list
+    return (mgmap,pdata,plotlev,plotlab,extend,
+            trans_base_list,data_transform)
 
 def _set_colorbar(m,cs,colorbardic={},
                   levels=None,
@@ -484,7 +485,8 @@ class mapcontourf(object):
                  **kwargs):
 
 
-        mgmap,pdata,plotlev,plotlab,extend,trans_base_list = \
+        (mgmap,pdata,plotlev,plotlab,extend,
+         trans_base_list,data_transform) = \
             _generate_map_prepare_data(data=data,lat=lat,lon=lon,
                                        projection=projection,
                                        mapbound=mapbound,
@@ -503,7 +505,7 @@ class mapcontourf(object):
         ##handle colorbar
         cbar = _set_colorbar(mgmap.m,cs,
                              colorbardic=colorbardic,
-                             levels=levels,
+                             levels=plotlev,
                              data_transform=data_transform,
                              colorbarlabel=colorbarlabel,
                              trans_base_list=trans_base_list,
@@ -518,6 +520,7 @@ class mapcontourf(object):
         self.plotlev = plotlev
         self.plotlab = plotlab
         self.ax = mgmap.m.ax
+        self.trans_base_list = trans_base_list
 
 
 class mapimshow(object):
@@ -547,9 +550,11 @@ class mapimshow(object):
                  levels=None,data_transform=False,
                  colorbardic={},
                  cbarkw={},
+                 *args,
                  **kwargs):
 
-        mgmap,pdata,plotlev,plotlab,extend,trans_base_list = \
+        (mgmap,pdata,plotlev,plotlab,extend,
+         trans_base_list,data_transform) = \
             _generate_map_prepare_data(data=data,lat=lat,lon=lon,
                                        projection=projection,
                                        mapbound=mapbound,
@@ -566,7 +571,7 @@ class mapimshow(object):
 
         cbar = _set_colorbar(mgmap.m,cs,
                              colorbardic=colorbardic,
-                             levels=levels,
+                             levels=plotlev,
                              data_transform=data_transform,
                              colorbarlabel=colorbarlabel,
                              trans_base_list=trans_base_list,
@@ -581,6 +586,58 @@ class mapimshow(object):
         self.plotlev = plotlev
         self.plotlab = plotlab
         self.ax = mgmap.m.ax
+        self.trans_base_list = trans_base_list
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
