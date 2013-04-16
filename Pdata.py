@@ -471,6 +471,9 @@ class Pdata(object):
             self._data_complete_check_all()
 
     def add_tag(self,tag=None):
+        """
+        add_tag will retain the sequence of entering tags.
+        """
         self.data[tag]=Pdata._new_entry.copy()
         self._taglist.append(tag)
 
@@ -523,6 +526,7 @@ class Pdata(object):
         Notes:
         ------
         1. if x==None, default index is used.
+        2. as add_tag, add_entry_noerror will retain the tag sequence.
         '''
         self.add_tag(tag)
         if x == None:
@@ -624,15 +628,27 @@ class Pdata(object):
         Add several tags which share the same x data; ydic will be a dictionary
             (or pandas DataFrame) with tag:ydata pairs. the length of x must
             be equal to all that of ydic[tag]
+
+        Notes:
+        ------
+        1. the sequence of pa.DataFrame columns will be retained in the taglist
+        2. the ydic keys squence may change as no OrderedDict is availabel with
+            python 2.6
         """
         #convert pandas dataframe to dict
         if isinstance(ydic,pa.DataFrame):
             newydic={}
             for key in ydic.columns:
                 newydic[key]=np.array(ydic[key])
+            taglist = list(ydic.columns)
             ydic=newydic
+        elif isinstance(ydic,dict):
+            taglist = ydic.keys()
+        else:
+            raise TypeError("input can only ba pa.DataFrame or dict")
 
-        for tag,ydata in ydic.items():
+        for tag in taglist:
+            ydata=ydic[tag]
             self.add_entry_noerror(x=x,y=ydata,tag=tag)
 
     def add_entry_noerror_by_dic_default_xindex(self,ydic):
@@ -1183,7 +1199,9 @@ class Pdata(object):
         """
         if isinstance(taglist,str):
             taglist = [taglist]
-        return self.regroup_data_by_tag(taglist)
+        pd = self.regroup_data_by_tag(taglist)
+        pd.set_tag_order(taglist)
+        return pd
 
     def regroup_data_by_tag_keyword(self,tag_keyword):
         tags=self._taglist
@@ -1261,7 +1279,7 @@ class Pdata(object):
             axes = axes
         else:
             raise ValueError("receive both axes and ax")
-        legend=kwargs.get('legend',None)
+        legend=kwargs.get('legend',True)
 
         for key in prior_keylist:
             kwargs.pop(key,None)
@@ -2142,6 +2160,10 @@ def from_DataFrame(df,df_func=None,index_func=None,force_sharex=None):
     force_sharex: In case index_func could not achieve the object to
         transform the index to desired sharex xaxis, force_sharex
         is used to force write the Pdata shared xaxis.
+
+    Notes:
+    ------
+    1. the column sequence of pa.DataFrame will be retained as taglist.
     """
     pd = Pdata()
     if df_func != None:
