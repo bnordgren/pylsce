@@ -1452,7 +1452,7 @@ class cm(object):
 class mapb(object):
     caal=(40,75,-170,-50)
 
-def plot_OLS_reg(ax,x,y,c='k',ls='--'):
+def plot_OLS_reg(ax,x,y,c='k',ls='--',**kwargs):
     """
     Purpose: plot OLS regression line for y~x on axes ax.
     Note:
@@ -1465,7 +1465,7 @@ def plot_OLS_reg(ax,x,y,c='k',ls='--'):
     ynew=pb.MaskArrayByNan(y)
     [slope, intercept, r_value, p_value, std_err] = sp.stats.mstats.linregress(xnew,ynew)
     xnew_plot=pb.linspace_array(xnew)
-    line=ax.plot(xnew_plot,xnew_plot*slope+intercept,color=c,linestyle=ls)
+    line=ax.plot(xnew_plot,xnew_plot*slope+intercept,color=c,linestyle=ls,**kwargs)
     return line[0],[slope, intercept, r_value, p_value, std_err] 
         
 def plot_RTO_OLSreg2var(ax,x,y,c='k',ls='--'):
