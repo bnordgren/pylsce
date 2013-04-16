@@ -1963,6 +1963,19 @@ class Ncdata(object):
             rlon = self.geo_limit['lon']
         return (rlat,rlon)
 
+
+    @property
+    def grid(self):
+        lat = self.geo_limit['lat']
+        lon = self.geo_limit['lon']
+        return (lat[0],lon[0],lat[1],lon[1])
+
+    @property
+    def mapbound(self):
+        lat = self.geo_limit['lat']
+        lon = self.geo_limit['lon']
+        return (lat[0],lat[1],lon[0],lon[1])
+
     def Add_Vars_to_Pdata(self,varlist,npindex=np.s_[:],unit=True,
                           pd=None,pftsum=False,spa=None):
         """
@@ -2245,7 +2258,10 @@ class Ncdata(object):
                will first be generated using mathex.ndarray_mask_by_threshold,
                followed by mathex.ndarray_mask_smart_apply.
             3. in case of a function, it could be like
-                lambda x:np.ma.masked_invalid(x)
+               lambda x:np.ma.masked_invalid(x)
+            4. it could a non-masked function, eg.
+               mask_by=lambda x:np.ma.mean(x,axis=0), used to perform
+               proper data transfrom.
         npindex: further index the data after using grid. Note the npindex
             is applied after applying the mask_by.
         """
@@ -2308,6 +2324,9 @@ class Ncdata(object):
                followed by mathex.ndarray_mask_smart_apply.
             3. in case of a function, it could be like
                 lambda x:np.ma.masked_invalid(x)
+            4. it could a non-masked function, eg.
+               mask_by=lambda x:np.ma.mean(x,axis=0), used to perform
+               proper data transfrom.
         """
         dic = self.Add_Vars_to_Dict_Grid(varlist,grid=grid,pftsum=pftsum,
                                          mask_by=mask_by)
