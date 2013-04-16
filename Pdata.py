@@ -706,6 +706,10 @@ class Pdata(object):
         else:
             return FilterStringList(tagkw, self._taglist)
 
+    @property
+    def taglist(self):
+        return self._taglist
+
     def list_keys_for_tag(self,tag):
         """
         list the keys for the specified tag.
@@ -851,10 +855,13 @@ class Pdata(object):
         True if the attribute for all tags not specified.
         """
         single_value = pb.ListSingleValue(self.list_attr(attr_name).values())
-        if single_value == {} or single_value.values() == [None]:
-            return True
-        else:
+        if single_value == False:
             return False
+        else:
+            if single_value.values() in [[],[None]]:
+                return True
+            else:
+                return False
 
     def _set_random_color_attribute(self,attr_name):
         """
@@ -1241,13 +1248,31 @@ class Pdata(object):
         return self.Scatter_PathC
 
 
-    def plot(self,axes=None,legend=True,**kwargs):
+    def plot(self,*args,**kwargs):
+
+        prior_keylist = ['ax','axes','legend']
+        ax=kwargs.get('ax',None)
+        axes=kwargs.get('axes',None)
+        if ax == None and axes == None:
+            axes = None
+        elif ax != None:
+            axes =ax
+        elif axes != None:
+            axes = axes
+        else:
+            raise ValueError("receive both axes and ax")
+        legend=kwargs.get('legend',None)
+
+        for key in prior_keylist:
+            kwargs.pop(key,None)
+
         axes=_replace_none_axes(axes)
         if hasattr(self,'Line2D') and self.Line2D!={}:
             self.remove_line_by_tag()
         self.Line2D={}
         for tag,tag_data in self.data.items():
-            line2D=axes.plot(tag_data['x'],tag_data['y'],label=tag_data['label'],**kwargs)
+            kwargs.update({'label':tag_data['label']})
+            line2D=axes.plot(tag_data['x'],tag_data['y'],*args,**kwargs)
             self.Line2D[tag]=line2D[0]
         if legend == True:
             if self._check_empty_attribute('label'):
@@ -1809,7 +1834,7 @@ class Pdata(object):
             force_axdic: force a dictionary of parent_tag/axes pairs.
             ncols: num of columns when force_axs == None
             sharex,sharey: the same as plt.subplots
-            tagpos: the position of parent_tag
+            tagpos: the position of parent_tag; None or False to suppress.
             column_major: True if parent tags are deployed in column-wise.
             unit: used as ylabel for each subplot
             xlim: xlim
@@ -1819,12 +1844,32 @@ class Pdata(object):
                         default_tagseq=self._taglist,**kwargs)
         for tag,axt in axdic.items():
             pd_temp=self.regroup_data_by_tag([tag])
-            pd_temp.plot(axt,legend=False,**plotkw)
+            pd_temp.plot(ax=axt,legend=False,**plotkw)
         self.axes = axdic
         self.axdic = axdic
 
+    def set_text(self,textblock,pos='uc',ftdic={'size':12},**kwargs):
+        """
+        Set text based on the tags and their axes, by using g.Set_AxText
 
-    def set_xlabel(self,xlabel=None,xunit=False):
+        Parameters:
+        -----------
+        textblock: could be  single_value/list/dict/list_of_2len_tuples,
+            the same as the keyvalue in the function add_attr_by_tag.
+        kwargs: for text method.
+        """
+        if not hasattr(self,'axdic'):
+            raise AttributeError("This is not a seperate axes plot!")
+        else:
+            textdic = Pdata._expand_tag_value_to_dic(self._taglist,
+                                                     textblock,False)
+            for tag,text in textdic.items():
+                g.Set_AxText(self.axdic[tag],text,pos=pos,ftdic=ftdic,**kwargs)
+
+
+    def set_xlabel(self,xlabel=None,xunit=False,
+                  ha='center',va='center',
+                  **kwargs):
         if not hasattr(self,'axdic'):
             raise AttributeError("This is not a seperate axes plot!")
         else:
@@ -1851,9 +1896,13 @@ class Pdata(object):
                 else:
                     full_xlabel = orlabel
 
-                self.xlabeldic[tag] = axt.set_xlabel(full_xlabel)
+                self.xlabeldic[tag] = axt.set_xlabel(full_xlabel,
+                                                     va=va,
+                                                     ha=ha,
+                                                     **kwargs)
 
-    def set_ylabel(self,ylabel=None,yunit=False):
+    def set_ylabel(self,ylabel=None,yunit=False,ha='center',
+                   va='center',**kwargs):
         if not hasattr(self,'axdic'):
             raise AttributeError("This is not a seperate axes plot!")
         else:
@@ -1880,10 +1929,11 @@ class Pdata(object):
                 else:
                     full_ylabel = orlabel
 
-                self.ylabeldic[tag] = axt.set_ylabel(full_ylabel)
+                self.ylabeldic[tag] = axt.set_ylabel(full_ylabel,
+                                                     va=va,
+                                                     ha=ha,
+                                                     **kwargs)
 
-    def imshow(self,force_axs=None,tagseq=None):
-        pass
 
     def plot_split_axes_byX(self,force_axs=None,sharex=True,tagpos='ul',unit=False,ylab=False,force_taglist=None,ncols=1,plotkw={},**fig_kw):
         """
@@ -1927,6 +1977,8 @@ class Pdata(object):
             return fig,axdic
         else:
             return axdic
+
+
 
     def to_dic(self,sharex=False):
         outdic={}
@@ -2177,7 +2229,7 @@ class NestPdata(object):
                             **kwargs)
         for tag,axt in axdic.items():
             pd_temp = self.child_pdata[tag]
-            pd_temp.plot(axt,legend=False,**plotkw)
+            pd_temp.plot(ax=axt,legend=False,**plotkw)
 
         if legtag == False:
             pass
@@ -2443,6 +2495,60 @@ class Mdata(Pdata):
             cbar = plt.colorbar(mappable,ax=mappable.axes,**kw)
             cbardic[tag] = cbar
         self.cbardic = cbardic
+
+    def mapimshow_split_axes(self,projection='cyl',mapbound='all',
+                             gridstep=(30,30),shift=False,
+                             map_threshold=None,
+                             cmap=None,colorbarlabel=None,forcelabel=None,
+                             levels=None,data_transform=False,
+                             colorbardic={},cbarkw={},imgkw={},
+                             *args,
+                             **kwargs):
+        '''
+        bmap.mapimshow each tag on a subplot.
+
+        Parameters:
+        -----------
+        imshowkw: bmap.mapcontourf kwargs.
+        c.f. bmap.mapcontourf
+        kwargs:
+            force_axs: force the axes.
+            tagseq: the tag sequence, default is self._taglist
+            force_axdic: force a dictionary of parent_tag/axes pairs.
+            ncols: num of columns when force_axs == None
+            sharex,sharey: the same as plt.subplots
+            tagpos: the position of parent_tag
+            column_major: True if parent tags are deployed in column-wise.
+            unit: used as ylabel for each subplot
+            xlim: xlim
+        '''
+        axdic = _creat_dict_of_tagaxes_by_tagseq_g(
+                        default_tagseq=self._taglist,
+                        default_tagpos='ouc',
+                        sharex=True, sharey=True,
+                        **kwargs)
+        mapimgdic={}
+        for tag,axt in axdic.items():
+            mapimg = bmap.mapimshow(data=self.data[tag]['array'],
+                                    lat=self.data[tag]['lat'],
+                                    lon=self.data[tag]['lon'],
+                                    ax=axt, projection=projection,
+                                    mapbound=mapbound,
+                                    gridstep=gridstep,
+                                    shift=shift,
+                                    cmap=cmap,
+                                    colorbarlabel=colorbarlabel,
+                                    forcelabel=forcelabel,
+                                    levels=levels,
+                                    data_transform=data_transform,
+                                    colorbardic=colorbardic,
+                                    cbarkw=cbarkw,
+                                    *args,
+                                    **imgkw)
+            mapimgdic[tag] = mapimg
+
+        self.axdic = axdic
+        self.mapimgdic = mapimg
 
     def mapcontourf_split_axes(self, projection='cyl',mapbound='all',
                                gridstep=(30,30),shift=False,
