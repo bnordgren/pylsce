@@ -2243,7 +2243,8 @@ class Ncdata(object):
 
     def Add_Vars_to_Dict_Grid(self,varlist,grid=None,
                               pftsum=False,mask_by=None,
-                              npindex=np.s_[:]):
+                              npindex=np.s_[:],
+                              transform_func=None):
         """
         Add vars to dictionary.
 
@@ -2264,6 +2265,9 @@ class Ncdata(object):
                proper data transfrom.
         npindex: further index the data after using grid. Note the npindex
             is applied after applying the mask_by.
+        transform_func: data transform_func after applying npindex. That's
+            could be useful in case to select specific time range and
+            then make time sum or mean.
         """
         final_ncdata = self._get_final_ncdata_by_flag(pftsum=pftsum)
         final_dict = {}
@@ -2290,12 +2294,19 @@ class Ncdata(object):
             else:
                 raise TypeError("wrong mask_by type")
 
+        def apply_transform_func(data,transform_func):
+            if transform_func == None:
+                return data
+            elif callable(transform_func):
+                return transform_func(data)
+            else:
+                raise TypeError("transform_func must be function")
 
         for var in varlist:
             data = self._get_var_by_grid(var,grid=grid,
                                          pftsum=pftsum)
             data = treat_data_by_mask(data,mask_by)
-            final_dict[var] = data[npindex]
+            final_dict[var] = apply_transform_func(data[npindex],transform_func)
         return final_dict
 
     def Add_Vars_to_Dict_by_RegSum(self,varlist,mode='sum',pftsum=False,
@@ -2569,7 +2580,7 @@ def arithmetic_ncfiles_var(filelist,varlist,func,npindex=np.s_[:]):
     ndarray_list = [d.d1.__dict__[varname][comindex] for d,varname,comindex in zip(data_list,varlist,npindex_final)]
     return func(*ndarray_list)
 
-def nc_add_Mdata_by_DictFilenameVarlist(dict_filename_varlist,npindex=np.s_[:]):
+def nc_Add_Mdata_by_DictFilenameVarlist(dict_filename_varlist,npindex=np.s_[:]):
     """
     Simple wrapper of Pdata.Mdata
 
