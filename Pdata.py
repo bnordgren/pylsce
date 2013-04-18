@@ -288,6 +288,7 @@ def _treat_axes_dict(axdic,tagpos='ul',unit=None,xlim=None):
     """
     Label tag and unit for a dictionary of axes with tag as keys.
     """
+    print "Deprecating _treat_axes_dict"
     for tag,axt in axdic.items():
         g.Set_AxText(axt,tag,tagpos)
         if unit !=None :
@@ -372,7 +373,7 @@ def _creat_dict_of_tagaxes_by_tagseq_g(**kwargs):
         tagpos = _replace_none_by_given(tagpos, default_tagpos)
         #print 'default_tagpos',default_tagpos
         #print 'tagpos',tagpos
-        g.Set_AxText(axt,tag,tagpos)
+        g.Set_AxText(axt,tag,tagpos,color='b')
         if unit !=None :
             if isinstance(unit,str):
                 #print "forced unit is used"
@@ -684,6 +685,7 @@ class Pdata(object):
     def copy(self):
         data=copy.deepcopy(self.data)
         pdata=Pdata(data)
+        pdata.set_tag_order(self._taglist)
         return pdata
 
     #NON_TESTED
@@ -1953,6 +1955,27 @@ class Pdata(object):
                                                      **kwargs)
 
 
+    def plot_OLS_reg(self,taglist='all',color='k',ls='--',**kwargs):
+        """
+        Add OLS regression line.
+        """
+        taglist = self._set_default_tag(taglist)
+        self.OLSlinedic = {}
+        OLSresultdic = {}
+        for tag in taglist:
+            line,OLSre_list = g.plot_OLS_reg(self.axdic[tag],
+                                        self.data[tag]['x'],
+                                        self.data[tag]['y'],
+                                        c=color,ls=ls,**kwargs)
+            self.OLSlinedic[tag] = line
+            OLSresultdic[tag] = OLSre_list
+        OLSre_colname = ['slope','intercept','r_value','p_value','stderr']
+        dft1 = pa.DataFrame(OLSresultdic,index=OLSre_colname)
+        dft2 = pa.DataFrame(dft1.ix['r_value']**2,columns=['R2'])
+        self.OLSresult = pa.concat([dft1,dft2.transpose()])
+
+
+
     def plot_split_axes_byX(self,force_axs=None,sharex=True,tagpos='ul',unit=False,ylab=False,force_taglist=None,ncols=1,plotkw={},**fig_kw):
         """
         line plot with each tag in a separate axes, data with different tags have the same xdata.
@@ -2563,6 +2586,7 @@ class Mdata(Pdata):
                                     forcelabel=forcelabel,
                                     levels=levels,
                                     data_transform=data_transform,
+                                    map_threshold=map_threshold,
                                     colorbardic=colorbardic,
                                     cbarkw=cbarkw,
                                     *args,
@@ -2615,6 +2639,7 @@ class Mdata(Pdata):
                                        colorbarlabel=colorbarlabel,
                                        forcelabel=forcelabel,
                                        levels=levels,
+                                       map_threshold=map_threshold,
                                        data_transform=data_transform,
                                        colorbardic=colorbardic,
                                        cbarkw=cbarkw,**mconfkw)
