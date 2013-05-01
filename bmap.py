@@ -74,6 +74,10 @@ class gmap(object):
                         lat1 = lat1-0.25
                     if lat2%0.25 == 0:
                         lat2 = lat2+0.25
+                    if lon1%0.25 == 0:
+                        lon1 = lon1-0.25
+                    if lon2%0.25 == 0:
+                        lon2 = lon2+0.25
                 if lat1<-85:
                     lat1=-90.
                 if lat2>85:
@@ -300,6 +304,7 @@ def _generate_map_prepare_data(data=None,lat=None,lon=None,
                                cmap=None,
                                smartlevel=None,
                                data_transform=False,
+                               gmapkw={},
                                ax=None):
     """
     This function makes the map, and transform data for ready
@@ -307,7 +312,7 @@ def _generate_map_prepare_data(data=None,lat=None,lon=None,
     """
     if shift==True:
         data,lon=bmp.shiftgrid(180,data,lon,start=False)
-    mgmap=gmap(ax,projection,mapbound,lat,lon,gridstep)
+    mgmap=gmap(ax,projection,mapbound,lat,lon,gridstep,**gmapkw)
     m,lonpro,latpro,latind,lonind = (mgmap.m, mgmap.lonpro, mgmap.latpro,
                                     mgmap.latind, mgmap.lonind)
 
@@ -482,7 +487,8 @@ class mapcontourf(object):
                  levels=None,data_transform=False,
                  colorbardic={},
                  cbarkw={},
-                 **kwargs):
+                 gmapkw={}
+                 ):
 
 
         (mgmap,pdata,plotlev,plotlab,extend,
@@ -497,6 +503,7 @@ class mapcontourf(object):
                                        cmap=cmap,
                                        smartlevel=smartlevel,
                                        data_transform=data_transform,
+                                       gmapkw=gmapkw,
                                        ax=ax)
 
         #make the contourf plot
@@ -521,6 +528,7 @@ class mapcontourf(object):
         self.plotlab = plotlab
         self.ax = mgmap.m.ax
         self.trans_base_list = trans_base_list
+        self.gmap = mgmap
 
 
 class mapimshow(object):
@@ -587,6 +595,7 @@ class mapimshow(object):
         self.plotlab = plotlab
         self.ax = mgmap.m.ax
         self.trans_base_list = trans_base_list
+        self.gmap = mgmap
 
 
 
