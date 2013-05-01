@@ -634,7 +634,12 @@ class NcWrite(object):
 
     def _construct_data_by_dim(self,numdim):
         """
-        construct the global ndarray that we need and fill in with the data from each region.
+        construct the global ndarray that we need and fill in with
+            the data from each region.
+
+        Notes:
+        ------
+        1. The data is iniated as all being masked.
         """
         dimlen_dic = pb.Dic_Apply_Func(len,self.dimensions)
         if numdim == 4:
@@ -700,17 +705,25 @@ class NcWrite(object):
         else:
             raise ValueError("Strange that numdim is 1")
 
-    def add_var_from_file_list(self,input_file_list,varlist,Ncdata_latlon_dim_name=None):
+    def add_var_from_file_list(self,input_file_list,varlist,
+                               Ncdata_latlon_dim_name=None):
         """
         Mainly used for merging nc files spatially
 
         Parameters:
         -----------
         input_file_list: the NetCDF input file list for merging.
-        varlist: variable name list that will appear in merged nc file. Note each input file have have the specified variable and the dimension accros all 
-            input files must be the same.
-        Ncdata_latlon_dim_name: the selective varialbe that's used in Ncdata when open a nc file.
+        varlist: variable name list that will appear in merged nc file.
+            Note each input file have have the specified variable
+            and the number of dimension accros all input files
+            must be the same.
+        Ncdata_latlon_dim_name: the selective varialbe that's used
+            in Ncdata when open a nc file.
 
+        Notes:
+        ------
+        1. If there are intersections in the input file spatial coverage,
+            files come later will overwrite the proceeding ones.
         """
         data = [Ncdata(filename,latlon_dim_name=Ncdata_latlon_dim_name) for filename in input_file_list]
         subdata_first = data[0]
@@ -1638,6 +1651,51 @@ class Ncdata(object):
 
         return latvar,lonvar,mapvar
 
+
+    def _set_map_title_unit_by_mapvarname(self,mapvarname,axt,
+                                          unit=None,
+                                          title=None):
+        mapvar_full=self.d0.__dict__[mapvarname]
+        def retrieve_external_default(external_var,attribute):
+            if external_var!=None:
+                outvar=external_var
+            elif hasattr(mapvar_full,attribute):
+                if external_var==False:
+                    outvar=None
+                else:
+                    outvar=mapvar_full.getncattr(attribute)
+            else:
+                outvar=None
+            return outvar
+        #retrieve title or unit
+        map_unit=retrieve_external_default(unit,'units')
+        map_title=retrieve_external_default(title,'long_name')
+        try:
+            agre_title_complement='[yearly '+agremode+']'
+        except:
+            agre_title_complement=None
+
+        #function handling ax title
+        def set_title_unit(ax,title=None,unit=None,agre_title_complement=None):
+            try:
+                title_unit=title+('\n'+unit)
+            except TypeError:
+                try:
+                    title_unit=title
+                    title_agre=agre_title_complement+' '+title
+                except TypeError:
+                    pass
+            finally:
+                try:
+                    title_full=agre_title_complement+' '+title_unit
+                except TypeError:
+                    title_full=title_unit
+            if title_full!=None:
+                ax.set_title(title_full)
+            else:
+                pass
+        set_title_unit(axt,map_title,map_unit,agre_title_complement)
+
     def map(self,mapvarname,
             forcedata=None,mapdim=None,
             agremode=None,pyfunc=None,mask=None,
@@ -1650,6 +1708,7 @@ class Ncdata(object):
             colorbardic={},
             maptype='con',
             cbarkw={},
+            gmapkw={},
             **kwargs):
         """
         This is an implementation of bamp.mapcontourf
@@ -1679,11 +1738,14 @@ class Ncdata(object):
                        data_transform=data_transform,
                        ax=ax,colorbardic=colorbardic,
                        cbarkw=cbarkw,
+                       gmapkw=gmapkw,
                        **kwargs)
 
         self.mcon = mcon
         self.m = mcon.m
         self.cbar = mcon.cbar
+        self._set_map_title_unit_by_mapvarname(mapvarname,self.m.ax,
+                                               unit=unit,title=title)
 
     def imshowmap(self,varname,forcedata=None,pftsum=False,ax=None,projection='cyl',mapbound='all',gridstep=(30,30),shift=False,colorbar=True,
                   colorbarlabel=None,*args,**kwargs):
@@ -1738,6 +1800,9 @@ class Ncdata(object):
         -----------
         (lat1,lon1): lowerleft coordinate
         (lat2,lon2): upperright coordinate
+        index: if index is True, the input (lat1,lon1),(lat2,lon2) will
+            not be treated as lat/lon values but as the index to
+            retrieve lat/lon values.
         """
         if index:
             lat1,lat2 = self.lat[lat1],self.lat[lat2]
@@ -2086,7 +2151,8 @@ class Ncdata(object):
 
     def Add_Vars_to_Mdata(self,varlist,grid=None,
                           mask_by=None,npindex=np.s_[:],
-                          md=None,pftsum=False):
+                          md=None,pftsum=False,
+                          transform_func=None):
         '''
         Add several vars to Mdata for easy mapping, this is a simple
             warpper of Add_Vars_to_Dict_Grid.
@@ -2094,19 +2160,30 @@ class Ncdata(object):
         Parameters:
         -----------
         grid: should be a tuple of (lat1,lon1,lat2,lon2)
-        mask_by: in case of a boolean numpy array, the mask will be directly
-            apply on the retrieved array by using mathex.ndarray_mask_smart_apply;
-            incase of a tuple like (varname,{'lb':2000,'ub':5000}), the mask
-            will first be generated using mathex.ndarray_mask_by_threshold,
-            followed by mathex.ndarray_mask_smart_apply.
+        mask_by:
+            1. in case of a boolean numpy array, the mask will be directly
+               apply on the retrieved array by using
+               mathex.ndarray_mask_smart_apply;
+            2. in case of a tuple like (varname,{'lb':2000,'ub':5000}), the mask
+               will first be generated using mathex.ndarray_mask_by_threshold,
+               followed by mathex.ndarray_mask_smart_apply.
+            3. in case of a function, it could be like
+               lambda x:np.ma.masked_invalid(x)
+            4. it could a non-masked function, eg.
+               mask_by=lambda x:np.ma.mean(x,axis=0), used to perform
+               proper data transfrom.
         npindex: further index the data after using grid. Note the npindex
             is applied after applying the mask_by.
+        transform_func: data transform_func after applying npindex. That's
+            could be useful in case to select specific time range and
+            then make time sum or mean.
         '''
         if md==None:
             md=Pdata.Mdata()
 
         ydic = self.Add_Vars_to_Dict_Grid(varlist,grid=grid,mask_by=mask_by,
-                                     pftsum=pftsum,npindex=npindex)
+                                          pftsum=pftsum,npindex=npindex,
+                                          transform_func=transform_func)
         md.add_entry_array_bydic(ydic)
         (sublat,sublon) = self.Get_latlon_by_Grid(grid)
         md.add_attr_by_tag(lat=sublat,lon=sublon)
@@ -2311,7 +2388,10 @@ class Ncdata(object):
 
     def Add_Vars_to_Dict_by_RegSum(self,varlist,mode='sum',pftsum=False,
                                    mask_by=None,
-                                   area_weight=False,unit_func=None,grid=None):
+                                   area_weight=False,
+                                   unit_func=None,
+                                   transform_func=None,
+                                   grid=None):
         """
         Add vars to dictionary, but with some spatial operation.
         This is a further wrapper of gnc.Ncdata.Add_Vars_to_Dict_Grid
@@ -2338,11 +2418,16 @@ class Ncdata(object):
             4. it could a non-masked function, eg.
                mask_by=lambda x:np.ma.mean(x,axis=0), used to perform
                proper data transfrom.
+
+        See also
+        --------
+        gnc.Ncdata.Add_Vars_to_Dict_Grid
         """
         dic = self.Add_Vars_to_Dict_Grid(varlist,grid=grid,pftsum=pftsum,
-                                         mask_by=mask_by)
+                                         mask_by=mask_by,
+                                         transform_func=transform_func)
 
-        def get_area_array(area_weight,shape,unit_func):
+        def get_area_array(area_weight,shape):
             """
             """
             if area_weight == True:
@@ -2354,10 +2439,6 @@ class Ncdata(object):
                                        #shape is the latXlon of grid
             else:
                 raise ValueError("area_weight could only be boolean or str type.")
-
-            #unit_func is mainly for purpose of scaling the data due to unit reasons.
-            if unit_func != None:
-                area = unit_func(area)
 
             return area
 
@@ -2375,7 +2456,7 @@ class Ncdata(object):
 
         for key,data in dic.items():
             shape = (data.shape[-2],data.shape[-1])
-            area = get_area_array(area_weight,shape,unit_func)
+            area = get_area_array(area_weight,shape)
             data_area = data*area
             mode_func = get_func_by_mode(mode,area)
             data_new = mode_func(data_area)
@@ -2390,16 +2471,22 @@ class Ncdata(object):
     def Add_Vars_to_dataframe(self,varlist,mode='sum',pftsum=False,
                               mask_by=None,
                               area_weight=False,
+                              transform_func=None,
                               unit_func=None,
                               grid=None,
                               index=None):
         """
         This is a simple wrapper of Add_Vars_to_Dict_by_RegSum
+
+        See also
+        --------
+        gnc.Ncdata.Add_Vars_to_Dict_Grid
         """
         dic = self.Add_Vars_to_Dict_by_RegSum(varlist,mode=mode,
                                               pftsum=pftsum,
                                               mask_by=mask_by,
                                               area_weight=area_weight,
+                                              transform_func=transform_func,
                                               unit_func=unit_func,
                                               grid=grid)
         return pa.DataFrame(dic,index=index)
