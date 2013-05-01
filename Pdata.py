@@ -326,7 +326,7 @@ def _creat_dict_of_tagaxes_by_tagseq_g(**kwargs):
     paradict = dict(force_axs=None,tagseq=None,
                          default_tagseq=None,
                          ncols=1, column_major=False,
-                         sharex=True, sharey=False,
+                         sharex=False, sharey=False,
                          force_axdic=None,
                          tagpos=None, default_tagpos='ul',
                          unit=None, xlim=None,
@@ -599,6 +599,40 @@ class Pdata(object):
         pd.add_entry_sharex_noerror_by_dic(dic,x=x)
         return pd
 
+    @classmethod
+    def from_dataframe(cls,df,df_func=None,index_func=None,
+                       force_sharex=None):
+        """
+        Create a sharex Pdata.Pdata object from pandas DataFrame
+
+        Parameters:
+        -----------
+        df_func: function that applies on DataFrame before feeding data
+            into Pdata.
+        index_func: index function that will be applied before using the
+            DataFrame index as shared xaxis of the Pdata object, this is
+            useful as sometimes DataFrame index could be a bit strange
+            and not readily compatible with matplotlib functions.
+        force_sharex: In case index_func could not achieve the object to
+            transform the index to desired sharex xaxis, force_sharex
+            is used to force write the Pdata shared xaxis.
+
+        Notes:
+        ------
+        1. the column sequence of pa.DataFrame will be retained as taglist.
+        """
+        pd = Pdata()
+        if df_func != None:
+            df = df_func(df)
+        if force_sharex == None:
+            if index_func == None:
+                pd.add_entry_sharex_noerror_by_dic(df,x=df.index.values)
+            else:
+                pd.add_entry_sharex_noerror_by_dic(df,x=index_func(df.index.values))
+        else:
+            pd.add_entry_sharex_noerror_by_dic(df,x=force_sharex)
+        pd.set_tag_order(list(df.columns))
+        return pd
 
     def add_entry_singleYerror(self,x,y,yerr,tag):
         self.add_tag(tag)
@@ -1269,6 +1303,14 @@ class Pdata(object):
 
 
     def plot(self,*args,**kwargs):
+        """
+        A wrapper of matplotlib.axes.Axes.plot
+
+        kwargs:
+        -------
+        axes: forced axes.
+        legend: boolean type. Set False to supress the legend.
+        """
 
         prior_keylist = ['ax','axes','legend']
         ax=kwargs.get('ax',None)
@@ -1565,7 +1607,7 @@ class Pdata(object):
                 if (tag_xerr==None and tag_yerr==None):
                     continue
                 else:
-                    print tag_xerr,tag_yerr
+                    #print tag_xerr,tag_yerr
                     tag_kwargs=kwargs.copy()
                     tag_plot_attr_dic=Dic_Remove_By_Subkeylist(tag_data,Pdata._all_nonplot_keylist)
                     tag_kwargs.update(tag_plot_attr_dic)  #here, tag_plot_attr_dic contains keys for all ploting types; tag_kwargs get contaminated.
@@ -1576,8 +1618,8 @@ class Pdata(object):
         attr_dic=Pdata._bar_attr_default.copy()
         attr_dic.update(Dic_Extract_By_Subkeylist(kwargs,Pdata._bar_attr_base_keylist))
         kwargs=Dic_Remove_By_Subkeylist(kwargs,Pdata._plot_attr_keylist_all)
-        print '_gbar',kwargs
-        print '_bar',attr_dic
+        #print '_gbar',kwargs
+        #print '_bar',attr_dic
         return axes.bar(left, height, width=width, bottom=bottom, label=label, **kwargs)
 
     def bar(self,axes=None,**kwargs):
@@ -1696,6 +1738,10 @@ class Pdata(object):
     def set_xdata_by_ydata_by_tag(self,tag):
         """
         Set the xdata of all tags to the ydata of the specified tag.
+
+        Notes:
+        ------
+        1. Original tag order will be maintained.
         """
         remain_taglist = StringListAnotB(self._taglist,[tag])
         targetdic=Dic_Extract_By_Subkeylist(self.data,remain_taglist)
@@ -1732,6 +1778,9 @@ class Pdata(object):
 
     def set_legend(self,plottype='all',axes=None,taglab=True,
                        tag_seq=None,**kwargs):
+        """
+        plottype: could be 'line','sca'/'scatter','bar','all.'
+        """
         (handler_list,label_list) = self.get_handle_label(plottype=plottype,
                     taglab=taglab,tag_seq=tag_seq)
         if axes==None:
@@ -1798,7 +1847,7 @@ class Pdata(object):
             for tag,attr_value in final_dic.items():
                 plt.setp(artist_dic[tag],**{attr_name:attr_value})
 
-    def _get_artist_dic_by_plottype(self,plottype):
+    def _get_artist_dic_by_plottype(self,plottype='all'):
         '''
         Notes:
         ------
@@ -2068,6 +2117,7 @@ class Pdata(object):
         for (oldtag,newtag) in old_new_tag_tuple_list:
             self.data[newtag] = self.data[oldtag]
             del self.data[oldtag]
+            self._taglist[self._taglist.index(oldtag)] = newtag
 
     def to_pd(self,filename):
         """
@@ -2188,6 +2238,8 @@ def from_DataFrame(df,df_func=None,index_func=None,force_sharex=None):
     ------
     1. the column sequence of pa.DataFrame will be retained as taglist.
     """
+    print """DeprecatingWarning Pdata.from_DataFrame! use 
+             Pdata.Pdata.from_dataframe instead"""
     pd = Pdata()
     if df_func != None:
         df = df_func(df)
@@ -2421,11 +2473,39 @@ class NestPdata(object):
         data = pb.pfload(filename)
         return NestPdata(data)
 
+    @classmethod
+    def from_dict_of_dataframe(cls,dict_dataframe,
+                               df_func=None,
+                               index_func=None,
+                               force_sharex=None):
+        """
+        Create a NestPdata object from a dictionary of dataframe.
+        """
+        pddic = {}
+        for parent_tag,dataframe in dict_dataframe.items():
+            pddic[parent_tag] = Pdata.from_dataframe(dataframe,
+                                    df_func=df_func,
+                                    index_func=index_func,
+                                    force_sharex=force_sharex)
+        return NestPdata(pddic)
+
 
 
 class Mdata(Pdata):
     _data_base_keylist=['array','lat','lon']
     _new_entry=dict.fromkeys(_data_base_keylist,None)
+
+    def __init__(self,data=None):
+        if data == None:
+            self.data = {}
+        else:
+            self.data = copy.deepcopy(data)
+
+        if self.data == {}:
+            self._taglist = []
+        else:
+            self._taglist = self.data.keys()
+            self._data_complete_check_all()
 
     def add_tag(self,tag=None):
         self.data[tag]=Mdata._new_entry.copy()
@@ -2455,9 +2535,16 @@ class Mdata(Pdata):
             self.add_array(ydata,tag)
 
     @classmethod
-    def from_dict_of_array(cls,ydic):
+    def from_dict_of_array(cls,ydic,npindex=None):
+        if npindex == None:
+            ydicnew = ydic
+        else:
+            ydicnew = {}
+            for k,v in ydic.items():
+                ydicnew[k] = v[npindex]
+
         md = Mdata()
-        md.add_entry_array_bydic(ydic)
+        md.add_entry_array_bydic(ydicnew)
         return md
 
     @classmethod
@@ -2601,7 +2688,9 @@ class Mdata(Pdata):
                                map_threshold=None,
                                cmap=None,colorbarlabel=None,forcelabel=None,
                                levels=None,data_transform=False,
-                               colorbardic={},cbarkw={},mconfkw={},
+                               colorbardic={},cbarkw={},
+                               gmapkw={},
+                               mconfkw={},
                                **kwargs):
         '''
         bmap.mapcontourf each tag on a subplot.
@@ -2624,7 +2713,6 @@ class Mdata(Pdata):
         axdic = _creat_dict_of_tagaxes_by_tagseq_g(
                         default_tagseq=self._taglist,
                         default_tagpos='ouc',
-                        sharex=True, sharey=True,
                         **kwargs)
         mapconfdic={}
         for tag,axt in axdic.items():
@@ -2642,7 +2730,10 @@ class Mdata(Pdata):
                                        map_threshold=map_threshold,
                                        data_transform=data_transform,
                                        colorbardic=colorbardic,
-                                       cbarkw=cbarkw,**mconfkw)
+                                       cbarkw=cbarkw,
+                                       gmapkw=gmapkw,
+                                       **mconfkw)
+
             mapconfdic[tag] = mapconf
         self.axdic = axdic
         self.mapconfdic = mapconfdic
@@ -2661,10 +2752,21 @@ class Mdata(Pdata):
             pdtemp.data[tag]['array']=func(pdtemp.data[tag]['array'])
         return pdtemp
 
+    @classmethod
+    def merge_mdata(cls,*mdlist):
+        """
+        Merge the mdata.
+        """
+        newdata = {}
+        for md in mdlist:
+            newdata.update(md.data)
+        md = Mdata(data=newdata)
+        return md
+
     def copy(self):
         data=copy.deepcopy(self.data)
-        pdata=Pdata(data)
-        return pdata
+        md = Mdata(data)
+        return md
 
     #@append_doc_of(gnc._set_default_ncfile_for_write)
     def to_ncfile(self,filename,**kwargs):
