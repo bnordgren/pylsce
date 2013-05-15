@@ -557,7 +557,7 @@ class NcWrite(object):
         if np.ma.isMA(vardata):
             missing_value = vardata.fill_value
         else:
-            missing_value = 1.0e+20
+            missing_value = nc.default_fillvals[varinfo['dtype']]
 
         var = self.rootgrp.createVariable(varinfo['varname'],
                                           varinfo['dtype'],
@@ -576,7 +576,8 @@ class NcWrite(object):
         #copy the variable attributes from another netCDF4.Variable object.
         if isinstance(attr_copy_from, nc.Variable):
             for attr_name in attr_copy_from.ncattrs():
-                var.setncattr(attr_name, attr_copy_from.getncattr(attr_name))
+                if attr_name not in [u'_FillValue', u'missing_value']:
+                    var.setncattr(attr_name, attr_copy_from.getncattr(attr_name))
 
         #set variable attributes by hand
         for key,value in attr_kwargs.items():
@@ -685,7 +686,7 @@ class NcWrite(object):
 
 
 
-    def _add_var_by_dim(self,varname,numdim,data):
+    def _add_var_by_dim(self,varname,numdim,data,pyfunc=None):
         """
         Used only by add_var_from_file_list
         """
@@ -695,6 +696,13 @@ class NcWrite(object):
             subslice = _construct_slice_by_dim(numdim,(lon_index_min, lon_index_max, lat_index_min, lat_index_max))
             glob_data[subslice] = subdata.d1.__dict__[varname] #note here the mask of glob_data will be changed automatically.
             print "data fed from file --{0}--".format(subdata.filename)
+
+        if pyfunc != None:
+            if callable(pyfunc):
+                glob_data = pyfunc(glob_data)
+            else:
+                raise TypeError("pyfunc not callable")
+
 
         if numdim == 4:
             self.add_var_4dim_time_pft_lat_lon(varname, glob_data, attr_copy_from=subdata.d0.__dict__[varname])
@@ -706,7 +714,8 @@ class NcWrite(object):
             raise ValueError("Strange that numdim is 1")
 
     def add_var_from_file_list(self,input_file_list,varlist,
-                               Ncdata_latlon_dim_name=None):
+                               Ncdata_latlon_dim_name=None,
+                               pyfunc=None):
         """
         Mainly used for merging nc files spatially
 
@@ -732,7 +741,7 @@ class NcWrite(object):
                 raise ValueError("The variable {0} in all input files does not have the same dimension!".format(varname))
             else:
                 numdim = len(subdata_first.d0.__dict__[varname].dimensions)
-                self._add_var_by_dim(varname,numdim,data)
+                self._add_var_by_dim(varname,numdim,data,pyfunc=pyfunc)
 
         glob_attr_dic = subdata_first.global_attributes
         #pdb.set_trace()
@@ -753,58 +762,6 @@ class NcWrite(object):
         elif nc.__version__ == '0.9.7':
             for key,value in glob_attr_dic.items():
                 self.rootgrp.setncattr(key,value)
-
-def nc_spatial_concat_ncfiles(outfile,input_file_list,timestep=None,time_length=None,
-                   varlist=None,latvar=None,lonvar=None,
-                   latinfo=None,loninfo=None,pft=False,
-                   Ncdata_latlon_dim_name=None):
-    """
-    A shortcut for merging spatially a list of files. For detailed control
-        of dimensions and varialbes, use NcWrite first, followed by
-        add_var_from_file_list.
-
-    Parameters:
-    -----------
-    timestep: 'year' or 'month', default is 'year'
-    time_length: np.arange(1,time_length+1) will be the time variable value.
-    varlist: the variable list that's to be retained in merged file.
-        default inclules all variables except the dimension variable.
-    latvar,lonvar: the lat/lon for megered data. default is 0.5 degree
-        resolution with global coverage.
-    latinfo,loninfo: tuple containing ('lat/lon_dim_name','lat/lon_var_name',
-        'lat/lon_var_longname'); default for lat is ('lat','lat','latitude')
-        and for lon is ('lon','lon','longitude').
-    pft: if pft==True, then PFT dimensions from ORCHIDEE will be added.
-    Ncdata_latlon_dim_name: the specified lat/lon dimension names that are
-        used when calling Ncdata.
-
-    see also
-    --------
-    gnc.Ncdata
-
-    Test
-    ----
-    nc_subgrid_csv and nc_merge_files are tested against each other
-        in the gnc_test.py.
-    """
-    ncfile = NcWrite(outfile)
-    ncfile.add_diminfo_lon('lon','lon','longitude')
-    ncfile.add_diminfo_lat('lat','lat','latitude')
-    ncfile.add_2dim_lat_lon(np.arange(89.75,-90,-0.5),
-                            np.arange(-179.75,180,0.5))
-    if pft == True:
-        ncfile.add_dim_pft()
-    if timestep == None:
-        timestep = 'year'
-    ncfile.add_dim_time(np.arange(1,1+time_length),timestep=timestep)
-    subdata_first = Ncdata(input_file_list[0],
-                           latlon_dim_name=Ncdata_latlon_dim_name)
-    if varlist == None:
-        varlist = pb.StringListAnotB(subdata_first.list_var(),
-                                     subdata_first.dimvar_name_list)
-    ncfile.add_var_from_file_list(input_file_list,varlist,
-                         Ncdata_latlon_dim_name=Ncdata_latlon_dim_name)
-    ncfile.close()
 
 def _set_default_ncfile_for_write(ncfile,**kwargs):
     '''
@@ -836,6 +793,47 @@ def _set_default_ncfile_for_write(ncfile,**kwargs):
     ncfile.add_dim_time(np.arange(1,1+time_length),timestep=timestep)
     if kwargs.get('pft',False):
         ncfile.add_dim_pft()
+
+@append_doc_of(_set_default_ncfile_for_write)
+def nc_spatial_concat_ncfiles(outfile,input_file_list,
+                              varlist=None,
+                              pyfunc=None,
+                              Ncdata_latlon_dim_name=None,
+                              **kwargs):
+    """
+    A shortcut for merging spatially a list of files. For detailed control
+        of dimensions and varialbes, use NcWrite first, followed by
+        add_var_from_file_list.
+
+    Parameters:
+    -----------
+    varlist: the variable list that's to be retained in merged file.
+        default inclules all variables except the dimension variable.
+    Ncdata_latlon_dim_name: the specified lat/lon dimension names that are
+        used when calling Ncdata.
+    pyfunc: functions to be applied.
+
+    see also
+    --------
+    gnc.Ncdata
+
+    Test
+    ----
+    nc_subgrid_csv and nc_merge_files are tested against each other
+        in the gnc_test.py.
+    """
+    ncfile = NcWrite(outfile)
+    _set_default_ncfile_for_write(ncfile,**kwargs)
+    subdata_first = Ncdata(input_file_list[0],
+                           latlon_dim_name=Ncdata_latlon_dim_name)
+    if varlist == None:
+        varlist = pb.StringListAnotB(subdata_first.list_var(),
+                                     subdata_first.dimvar_name_list)
+    ncfile.add_var_from_file_list(input_file_list,varlist,
+                         Ncdata_latlon_dim_name=Ncdata_latlon_dim_name,
+                         pyfunc=pyfunc)
+    ncfile.close()
+
 
 
 
