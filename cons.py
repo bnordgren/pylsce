@@ -41,7 +41,9 @@ cal.get_month_doy()
 index_first_day_month_noleap = cal.index_first_day_month_noleap
 index_first_day_month_leap = cal.index_first_day_month_leap
 
-
+class levels(object):
+    
+    biomass_gC_m2 = [0, 20, 40, 60, 80, 100, 200, 400, 600, 800, 1000, 2000, 4000, 6000, 8000, 10000, 20000, 30000]
 
 
 
