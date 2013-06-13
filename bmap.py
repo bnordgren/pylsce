@@ -558,6 +558,7 @@ class mapimshow(object):
                  levels=None,data_transform=False,
                  colorbardic={},
                  cbarkw={},
+                 gmapkw={},
                  *args,
                  **kwargs):
 
@@ -573,6 +574,7 @@ class mapimshow(object):
                                        cmap=cmap,
                                        smartlevel=smartlevel,
                                        data_transform=data_transform,
+                                       gmapkw=gmapkw,
                                        ax=ax)
 
         cs=mgmap.m.imshow(pdata,origin='upper',*args,**kwargs)
