@@ -626,9 +626,9 @@ class Pdata(object):
             df = df_func(df)
         if force_sharex == None:
             if index_func == None:
-                pd.add_entry_sharex_noerror_by_dic(df,x=df.index.values)
+                pd.add_entry_sharex_noerror_by_dic(df,x=df.index)
             else:
-                pd.add_entry_sharex_noerror_by_dic(df,x=index_func(df.index.values))
+                pd.add_entry_sharex_noerror_by_dic(df,x=index_func(df.index))
         else:
             pd.add_entry_sharex_noerror_by_dic(df,x=force_sharex)
         pd.set_tag_order(list(df.columns))
@@ -1334,6 +1334,7 @@ class Pdata(object):
         self.Line2D={}
         for tag,tag_data in self.data.items():
             kwargs.update({'label':tag_data['label']})
+            #pdb.set_trace()
             line2D=axes.plot(tag_data['x'],tag_data['y'],*args,**kwargs)
             self.Line2D[tag]=line2D[0]
         if legend == True:
@@ -2269,6 +2270,26 @@ class NestPdata(object):
         self.child_pdata = dic_pdata
         self.child_tags = self.child_pdata.values()[0].list_tags()
 
+    def set_new_tags(self,old_new_tag_tuple_list,mode='parent'):
+        """
+        Change the old tag to new tag according to old_new_tag_tuple_list
+
+        Parameters:
+        -----------
+        old_new_tag_tuple_list: [(oldtag1,newtag1),(oldtag2,newtag2)]
+
+        Notes:
+        ------
+        1. In-place operation.
+        """
+        if mode == 'parent':
+            for (oldtag,newtag) in old_new_tag_tuple_list:
+                self.child_pdata[newtag] = self.child_pdata[oldtag]
+                del self.child_pdata[oldtag]
+                self.parent_tags[self.parent_tags.index(oldtag)] = newtag
+        else:
+            raise ValueError("mode child not implemented!")
+
     def set_parent_tag_order(self,taglist):
         self.parent_tags = taglist[:]
 
@@ -2416,6 +2437,17 @@ class NestPdata(object):
         else:
             raise ValueError("unknown mode.")
 
+    def __getitem__(self,taglist):
+        """
+        simple implementation of Pdata.NestPdata.regroup_data_by_tag, with
+            slicing mode in parent tags.
+        """
+        if isinstance(taglist,str):
+            taglist = [taglist]
+        npd = self.regroup_data_by_tag(taglist,mode='parent')
+        npd.set_parent_tag_order(taglist)
+        return npd
+
     @classmethod
     def merge_npd(cls,*npdlist,**kwargs):
         '''
@@ -2429,12 +2461,15 @@ class NestPdata(object):
         child_tags = npdlist[0].child_tags
         npddic = {}
         if mode == 'parent':
+            ptaglist = []
             for npd in npdlist:
                 if sorted(child_tags) != sorted(npd.child_tags):
                     raise ValueError('''child_tags not equal''')
                 else:
                     npddic.update(npd.child_pdata)
+                    ptaglist.extend(npd.parent_tags)
             npd_merge = NestPdata(npddic)
+            npd_merge.set_parent_tag_order(ptaglist)
         elif mode == 'child':
             new_npdlist = []
             for npd in npdlist:
