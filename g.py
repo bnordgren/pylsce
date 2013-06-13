@@ -17,6 +17,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 import pb
 import rpy2
 import copy
+from collections import Iterable
 #import rpy
 
 
