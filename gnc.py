@@ -1418,11 +1418,23 @@ class Ncdata(object):
         self.lonvar_name=lonvar_name
 
     def get_pftsum(self,varlist=None,veget_npindex=np.s_[:]):
+        """
+        Get PFT (VEGET_MAX) weighted average of variables.
+        Parameters:
+        -----------
+        varlist: limit varlist scope
+        veget_npindex: could be used to restrict for example the PFT
+            weighted average only among natural PFTs by setting
+            veget_npindex=np.s_[0:11]. It will be used to slice
+            VEGET_MAX variable.
+        """
+        if varlist == None:
+            varlist = self.d1.__dict__.keys()
         d0=self.d0
         d2=g.ncdata()
         d1=self.d1
         print "*******PFT VEGET_MAX weighted sum begin******"
-        for var in d1.__dict__.keys():
+        for var in varlist:
             if var!='VEGET_MAX':
                 #4-dim variable before squeeze
                 if d0.__dict__[var].ndim==4:
@@ -1710,6 +1722,10 @@ class Ncdata(object):
             **kwargs):
         """
         This is an implementation of bamp.mapcontourf
+
+        Parameters:
+        -----------
+        grid: should be a tuple of (lat1,lon1,lat2,lon2)
         """
         mlat,mlon,mdata = self._retrieve_data_for_map(
                                mapvarname=mapvarname,
@@ -2245,23 +2261,34 @@ class Ncdata(object):
 
         Parameters:
         -----------
-        separation_array: The array that's used to separate different regions. the np.unique(separation_array) will be used as the keys for the dictionary which will be
-            returned by the function.
+        separation_array: The array that's used to separate different regions.
+            the np.unique(separation_array) will be used as the keys for
+            the dictionary which will be returned by the function.
         forcedata: used to force input data.
-        pyfunc: function used to change the regional array data.
-        dimred_func: functions that used to reduce the dimensions of regional array data, as long as it could be applied on numpy ndarray. eg., np.sum will get the sum
-            of the regional array. If none, regional array will be returned. 
+        pyfunc:
+            in case of function, used to change the regional array data;
+            in case of a scalar, will be directly multiplied.
+        dimred_func: functions that used to reduce the dimensions of regional
+            array data, as long as it could be applied on numpy ndarray.
+            eg., np.sum will get the sum of the regional array. If None,
+            regional array will be returned.
         pftsum: if True, the varname data from the pftsum will be used.
 
         Notes:
         ------
-        1. varname could be any dimension as long as the last two dimensions are the same as separation_array.
+        1. varname could be any dimension as long as the last two dimensions
+            are the same as separation_array.
         2. pyfunc and dimred_func work for np.ma functions
+        3. dimred_func is not a general disign will be removed later.
+            A general use of pyfunc is rather preferred. For example,
+            to have a region sum with unit change, use:
+            pyfunc = lambda x: np.ma.sum(np.ma.sum(x,axis=-1),axis=-1)*30.
 
         Returns:
         --------
         region_dic: A dictionary with the region ID as keys and the region arrays or mean or sum as key values.
         """
+        print "dimred_func will be removed in the future!"
         if pftsum == True:
             vardata = self.pftsum.__dict__[varname]
         else:
@@ -2270,32 +2297,40 @@ class Ncdata(object):
             vardata = forcedata
 
         regdic={}
-        reg_id_list = np.unique(separation_array)
-        reg_id_list = reg_id_list.astype(int)
-        for reg_id in reg_id_list:
-            reg_valid = np.ma.masked_not_equal(separation_array,reg_id)
-            annual_reg = mathex.ndarray_apply_mask(vardata,mask=reg_valid.mask)
-            if np.any(np.isnan(annual_reg)) or np.any(np.isinf(annual_reg)):
-                print "Warning! nan or inf values have been masked for variable {0} reg_id {1}".format(varname,reg_id)
-                annual_reg = np.ma.masked_invalid(annual_reg)
-            if pyfunc!=None:
-                if isfunction(pyfunc):
-                    data=pyfunc(annual_reg)
+        unique_array = np.unique(separation_array)
+        unique_array = unique_array.astype(int)
+        #we need to avoid the duplicates after moldering the type into int.
+        if len(np.unique(unique_array)) < len(unique_array):
+            raise ValueError("""
+            Input separation_array have duplicate values after being
+            moldered into int type.
+            """)
+        else:
+            for reg_id in unique_array:
+                reg_valid = np.ma.masked_not_equal(separation_array,reg_id)
+                annual_reg = mathex.ndarray_apply_mask(vardata,mask=reg_valid.mask)
+                if np.any(np.isnan(annual_reg)) or np.any(np.isinf(annual_reg)):
+                    print "Warning! nan or inf values have been masked for variable {0} reg_id {1}".format(varname,reg_id)
+                    annual_reg = np.ma.masked_invalid(annual_reg)
+                if pyfunc!=None:
+                    if isfunction(pyfunc):
+                        data=pyfunc(annual_reg)
+                    else:
+                        data=annual_reg*pyfunc
                 else:
-                    data=annual_reg*pyfunc
-            else:
-                data = annual_reg
+                    data = annual_reg
 
-            if dimred_func == None:
-                regdic[reg_id] = data
-            elif callable(dimred_func):
-                if data.ndim >= 2:
-                    regdic[reg_id] = dimred_func(dimred_func(data,axis=-1),axis=-1)
+                if dimred_func == None:
+                    regdic[reg_id] = data
+                elif callable(dimred_func):
+                    if data.ndim >= 2:
+                        regdic[reg_id] = dimred_func(dimred_func(data,axis=-1),axis=-1)
+                    else:
+                        raise ValueError("strange the dimension of data is less than 2!")
                 else:
-                    raise ValueError("strange the dimension of data is less than 2!")
-            else:
-                raise TypeError("dimred_func must be callable")
-        return regdic
+                    raise TypeError("dimred_func must be callable")
+
+            return regdic
 
     def Plot_Vars(self,ax=None,varlist=None,npindex=np.s_[:],
                   unit=True,pftsum=False,spa=None,
@@ -2343,6 +2378,11 @@ class Ncdata(object):
         transform_func: data transform_func after applying npindex. That's
             could be useful in case to select specific time range and
             then make time sum or mean.
+
+        Notes:
+        ------
+        The applying sequence for different methods:
+        grid, mask_by,npindex,tansform_func
         """
         final_ncdata = self._get_final_ncdata_by_flag(pftsum=pftsum)
         final_dict = {}
@@ -2386,10 +2426,11 @@ class Ncdata(object):
 
     def Add_Vars_to_Dict_by_RegSum(self,varlist,mode='sum',pftsum=False,
                                    mask_by=None,
-                                   area_weight=False,
-                                   unit_func=None,
                                    transform_func=None,
-                                   grid=None):
+                                   grid=None,
+                                   npindex=np.s_[:],
+                                   area_weight=False,
+                                   unit_func=None):
         """
         Add vars to dictionary, but with some spatial operation.
         This is a further wrapper of gnc.Ncdata.Add_Vars_to_Dict_Grid
@@ -2417,11 +2458,19 @@ class Ncdata(object):
                mask_by=lambda x:np.ma.mean(x,axis=0), used to perform
                proper data transfrom.
 
+        Notes:
+        ------
+        Applying sequence:
+            first apply the sequential methods as in
+            gnc.Ncdata.Add_Vars_to_Dict_Grid, then by sequence of
+            mode, area_weight, unit_func
+
         See also
         --------
         gnc.Ncdata.Add_Vars_to_Dict_Grid
         """
         dic = self.Add_Vars_to_Dict_Grid(varlist,grid=grid,pftsum=pftsum,
+                                         npindex=npindex,
                                          mask_by=mask_by,
                                          transform_func=transform_func)
 
@@ -2472,13 +2521,19 @@ class Ncdata(object):
                               transform_func=None,
                               unit_func=None,
                               grid=None,
+                              npindex=np.s_[:],
                               index=None):
         """
         This is a simple wrapper of Add_Vars_to_Dict_by_RegSum
 
+        Parameters:
+        -----------
+        index: used as index in the dataframe.
+
         See also
         --------
         gnc.Ncdata.Add_Vars_to_Dict_Grid
+        gnc.Ncdata.Add_Vars_to_Dict_by_RegSum
         """
         dic = self.Add_Vars_to_Dict_by_RegSum(varlist,mode=mode,
                                               pftsum=pftsum,
@@ -2486,6 +2541,7 @@ class Ncdata(object):
                                               area_weight=area_weight,
                                               transform_func=transform_func,
                                               unit_func=unit_func,
+                                              npindex=npindex,
                                               grid=grid)
         return pa.DataFrame(dic,index=index)
 
