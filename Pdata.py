@@ -1778,6 +1778,7 @@ class Pdata(object):
         return pleg
 
     def set_legend(self,plottype='all',axes=None,taglab=True,
+                   twinx=False,
                        tag_seq=None,**kwargs):
         """
         plottype: could be 'line','sca'/'scatter','bar','all.'
@@ -1785,7 +1786,10 @@ class Pdata(object):
         (handler_list,label_list) = self.get_handle_label(plottype=plottype,
                     taglab=taglab,tag_seq=tag_seq)
         if axes==None:
-            axes=handler_list[0].get_axes()
+            if not twinx:
+                axes=handler_list[0].get_axes()
+            else:
+                axes=handler_list[0].get_axes().twinx()
         self.LegendAll=axes.legend(handler_list,
                                    label_list,**kwargs)
 
