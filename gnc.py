@@ -822,10 +822,13 @@ def nc_spatial_concat_ncfiles(outfile,input_file_list,
     nc_subgrid_csv and nc_merge_files are tested against each other
         in the gnc_test.py.
     """
-    ncfile = NcWrite(outfile)
-    _set_default_ncfile_for_write(ncfile,**kwargs)
     subdata_first = Ncdata(input_file_list[0],
                            latlon_dim_name=Ncdata_latlon_dim_name)
+    if 'PFT' in subdata_first.dimensions:
+        kwargs['pft'] = True
+    kwargs['time_length'] = subdata_first.unlimited_dimlen
+    ncfile = NcWrite(outfile)
+    _set_default_ncfile_for_write(ncfile,**kwargs)
     if varlist == None:
         varlist = pb.StringListAnotB(subdata_first.list_var(),
                                      subdata_first.dimvar_name_list)
