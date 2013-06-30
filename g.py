@@ -203,6 +203,59 @@ def cm_concat_multiple_cm(concat_cmap_list):
     final_rgb_array = np.concatenate(final_rgba_array_list,axis=0)
     return rgb2cm(final_rgb_array, cmname='tempcm')
 
+def _cm_contrast_2cmap(input_levels,**kwargs):
+    """
+    Make a contrast colormap by using the cmap1 and cmap2, the contrast
+        value is 0.
+
+    Parameters:
+    -----------
+    kwargs:
+        cmap1: the first cmap
+        cmap2: the second cmap
+        adjust: number to adjust the proportion of the cmap1.
+    """
+    cmap1 = kwargs.get('cmap1',mat.cm.autumn)
+    cmap2 = kwargs.get('cmap2',mat.cm.summer_r)
+    adjust = kwargs.get('adjust',0)
+    arr = np.array(input_levels)
+    num1 = len(arr[arr<0])
+    num2 = len(arr[arr>0])
+    concat_cmap_list = [(cmap1,0,1,num1+adjust),(cmap2,0,1,num2)]
+    return cm_concat_multiple_cm(concat_cmap_list)
+
+
+def cm_contrast_red2green(levels,**kwargs):
+    """
+    Make a contrast colormap by using input levels.
+
+    Parameters:
+    -----------
+    kwargs:
+        cmap1: the first cmap
+        cmap2: the second cmap
+        adjust: number to adjust the proportion of the cmap1.
+
+    Example:
+    --------
+    >>> a = np.arange(-3,11)
+    >>> data = np.tile(a,(len(a),1))
+    >>> contourf(data,levels=a,cmap=g.cm_contrast_red2green(a,adjust=1))
+    >>> cbar = colorbar()
+    >>> cbar.set_ticks(a)
+
+
+    >>> contourf(data,levels=a,
+            cmap=g.cm_contrast_red2green(a,
+            cmap1=g.cm_extract(mat.cm.autumn,(1,3)),
+            cmap2=g.cm_extract(mat.cm.summer_r,(6,10)),adjust=0))
+    >>> cbar = colorbar()
+    >>> cbar.set_ticks(a)
+    """
+    cmap1 = kwargs.pop('cmap1',mat.cm.autumn)
+    cmap2 = kwargs.pop('cmap2',mat.cm.summer_r)
+    return _cm_contrast_2cmap(levels,cmap1=cmap1,cmap2=cmap2,**kwargs)
+
 
 redcmp=mat.colors.LinearSegmentedColormap.from_list('redcmp',['#FFCCCC','#330000'])
 def red_level(levnum):
@@ -1518,9 +1571,17 @@ def legpro_lines(colorlist,labellist,ls='-',**kwargs):
     point_list=[mat.lines.Line2D([],[],color=c,ls=ls,**kwargs) for c in colorlist]
     return (point_list,labellist)
 
-def Set_Cbar_Label_Parallel(cbar,label_list,leftpos=1.2,**kwargs):
+def colorbar_set_label_parallel(cbar,label_list,leftpos=1.2,**kwargs):
     """
-    This is to set colorbar label besie the colorbar. see the example at:/homel/ychao/python/script/set_label_parallel_colorbar.py
+    This is to set colorbar label besie the colorbar.
+
+    Parameters:
+    -----------
+    cbar: the colorbar used to set.
+
+    Example:
+    --------
+    /homel/ychao/python/script/set_label_parallel_colorbar.py
     """
     cbar.set_ticklabels([])
     cbar.ax.tick_params(right='off',left='off')
@@ -1530,6 +1591,7 @@ def Set_Cbar_Label_Parallel(cbar,label_list,leftpos=1.2,**kwargs):
     else:
         for label,ypos in zip(label_list,yloc):
             cbar.ax.text(leftpos,ypos,label,ha='left',va='center',**kwargs)
+
 
 def setp(*artist,**kwargs):
     """
@@ -1679,9 +1741,12 @@ class ProxyLegend(object):
         return handle_list,label_list
 
 
-    def create_legend(self,ax,tagseq=None,**kwargs):
+    def create_legend(self,ax=None,tagseq=None,**kwargs):
         handle_list,label_list=self._get_handle_label(tagseq)
-        return ax.legend(handle_list,label_list,**kwargs)
+        if ax != None:
+            return ax.legend(handle_list,label_list,**kwargs)
+        else:
+            return plt.legend(handle_list,label_list,**kwargs)
 
     def add_lines_by_color(self,colorlist,labellist,**kwargs):
         for lab,c in zip(labellist,colorlist):
@@ -1760,4 +1825,137 @@ class ProxyLegend(object):
         #add handles
         for tag,tag_attr_subdic in plot_attr_tag_dic.items():
             self.add_line_by_tag(tag,**tag_attr_subdic)
+
+
+def Axes_get_bounds(axs):
+    """
+    Get bounds of group of axes.
+
+    Parameters:
+    -----------
+    axs: ndarray of axes, list of axes, axes.
+
+    Returns:
+    --------
+    [fig,(x0,x1,y0,y1)]: the figure and the four points of the
+        group of Axes.
+    """
+    if isinstance(axs,np.ndarray):
+        axlist = axs.flatten()
+    elif isinstance(axs,list):
+        axlist = pb.iteflat(axs)
+    elif isinstance(axs,mat.axes.Axes):
+        axlist = [axs]
+    else:
+        raise TypeError("wrong axs input")
+
+    pl = []
+    for ax in axlist:
+        box = ax.get_position()
+        pl.append((box.x0,box.x1,box.y0,box.y1))
+    pldata = np.array(pl)
+    (x0,x1,y0,y1) = pldata[:,0].min(),pldata[:,1].max(),pldata[:,2].min(),\
+                    pldata[:,3].max()
+
+    fig = axlist[0].get_figure()
+    return [fig,(x0,x1,y0,y1)]
+
+def _get_axesrec_by_pos_offset(rec,pos,offset,width=None,height=None):
+    """
+    Get the new rect by the old rec and pos,offset,width,height.
+
+    Parameters:
+    -----------
+    rec: (x0,x1,y0,y1) in units of figure fraction.
+
+    Returns:
+    --------
+    (nx0,ny0,width,height), the rec used in mat.figure.Figure.add_axes()
+        function.
+
+    Notes:
+    ------
+    A tentative function used in Axes_add_axes.
+    """
+    x0,x1,y0,y1 = rec
+
+    if pos in ['left','right']:
+        if height == None: height = y1-y0
+        else: pass
+
+        if width == None:
+            raise ValueError('width must be supplied when pos is left/right')
+        else:
+            pass
+    elif pos in ['above','below']:
+        if height == None:
+            raise ValueError('height must be supplied when pos is above/below')
+        else:
+            pass
+
+        if width == None: width = x1-x0
+        else: pass
+    else:
+        raise ValueError('pos error')
+
+    def get_origin(rec,pos,offset):
+        (x0,x1,y0,y1) = rec
+        if pos == 'left':
+            x0 = x0 - offset
+        elif pos == 'right':
+            x0 = x1 + offset
+        elif pos == 'above':
+            y0 = y1 + offset
+        elif pos == 'below':
+            y0 = y0 - offset
+        else:
+            raise ValueError('pos error')
+
+        return x0,y0
+
+    nx0,ny0 = get_origin(rec,pos,offset)
+
+    return (nx0,ny0,width,height)
+
+
+
+
+def Axes_add_axes(relative=None,pos='right',offset=None,
+                  width=None,height=None,**kwargs):
+    """
+    Add an axes relative to some other (group of) axes.
+
+    Parameters:
+    -----------
+    relative: currently could only be a list of ndarray of axes.
+    pos: the relative position of new axes to the relative, could be
+        'left','right','above','below'
+    offset: offset in unit if fraction of figure of the new added axes
+        in the direction of `pos` to the relative.
+    width,height: the width and height of the new axes. In case of pos
+        ='right/left', height will be calculated as the same of
+        the relative unless it's being forced. In case of the pos=
+        'above/below', width will be calculated as the same of
+        the relative unless it's being forced.
+
+    kwargs: kwargs used in mat.figure.Figure.add_axes
+
+    Returns:
+    --------
+    A new axes created.
+    """
+
+    if not pos in ['left','right','above','below']:
+        raise ValueError("pos could only be left/right/above/below")
+
+
+
+    [fig,rec] = Axes_get_bounds(relative)
+    newrec = _get_axesrec_by_pos_offset(rec,pos,offset,
+                                        width=width,
+                                        height=height)
+
+    return fig.add_axes(newrec,**kwargs)
+
+
 
