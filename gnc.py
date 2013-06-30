@@ -1426,10 +1426,13 @@ class Ncdata(object):
         Parameters:
         -----------
         varlist: limit varlist scope
-        veget_npindex: could be used to restrict for example the PFT
+        veget_npindex: 
+            1. could be used to restrict for example the PFT
             weighted average only among natural PFTs by setting
             veget_npindex=np.s_[0:11]. It will be used to slice
             VEGET_MAX variable.
+            2. could also be used to slice only for some subgrid
+            of the whole grid, eg., veget_npindex=np.s_[...,140:300,140:290].
         """
         if varlist == None:
             varlist = self.d1.__dict__.keys()
@@ -1491,7 +1494,12 @@ class Ncdata(object):
 
     def get_spa(self,pftop=True):
         """
-        Get the PFT weighed spatial mean and sum, only non-masked values will be considered.
+        Get the PFT weighed spatial mean and sum, only non-masked values
+            will be considered.
+
+        Notes:
+        ------
+        1. Only variables which are keys to Ncdata.pftsum will be treated.
         """
         if not hasattr(self,'pftsum'):
             if pftop==True:
