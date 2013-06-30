@@ -2726,6 +2726,7 @@ class Mdata(Pdata):
                                gridstep=(30,30),shift=False,
                                map_threshold=None,
                                cmap=None,colorbarlabel=None,forcelabel=None,
+                               show_colorbar=True,
                                levels=None,data_transform=False,
                                colorbardic={},cbarkw={},
                                gmapkw={},
@@ -2771,6 +2772,7 @@ class Mdata(Pdata):
                                        colorbardic=colorbardic,
                                        cbarkw=cbarkw,
                                        gmapkw=gmapkw,
+                                       show_colorbar=show_colorbar,
                                        **mconfkw)
 
             mapconfdic[tag] = mapconf

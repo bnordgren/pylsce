@@ -338,6 +338,7 @@ def _set_colorbar(m,cs,colorbardic={},
                   colorbarlabel=None,
                   trans_base_list=None,
                   forcelabel=None,
+                  show_colorbar=True,
                   plotlev=None,
                   plotlab=None,
                   cbarkw={}):
@@ -345,23 +346,26 @@ def _set_colorbar(m,cs,colorbardic={},
     Wrap the process for setting colorbar.
     """
     #handle the colorbar attributes by using dictionary which flexibility.
-    location = colorbardic.get('location','right')
-    size = colorbardic.get('size','3%')
-    pad = colorbardic.get('pad','2%')
-    cbar=m.colorbar(cs,location=location, size=size, pad=pad,**cbarkw)
-    #set colorbar ticks and colorbar label
-    if levels==None:
-        pass
+    if show_colorbar == False:
+        cbar = None
     else:
-        ticks,labels = \
-            _generate_colorbar_ticks_label(data_transform=data_transform,
-                                           colorbarlabel=colorbarlabel,
-                                           trans_base_list=trans_base_list,
-                                           forcelabel=forcelabel,
-                                           plotlev=plotlev,
-                                           plotlab=plotlab)
-        cbar.set_ticks(ticks)
-        cbar.set_ticklabels(labels)
+        location = colorbardic.get('location','right')
+        size = colorbardic.get('size','3%')
+        pad = colorbardic.get('pad','2%')
+        cbar=m.colorbar(cs,location=location, size=size, pad=pad,**cbarkw)
+        #set colorbar ticks and colorbar label
+        if levels==None:
+            pass
+        else:
+            ticks,labels = \
+                _generate_colorbar_ticks_label(data_transform=data_transform,
+                                               colorbarlabel=colorbarlabel,
+                                               trans_base_list=trans_base_list,
+                                               forcelabel=forcelabel,
+                                               plotlev=plotlev,
+                                               plotlab=plotlab)
+            cbar.set_ticks(ticks)
+            cbar.set_ticklabels(labels)
     return cbar
 
 class mapcontourf(object):
@@ -483,6 +487,7 @@ class mapcontourf(object):
                  projection='cyl',mapbound='all',
                  gridstep=(30,30),shift=False,map_threshold=None,
                  cmap=None,colorbarlabel=None,forcelabel=None,
+                 show_colorbar=True,
                  smartlevel=False,
                  levels=None,data_transform=False,
                  colorbardic={},
@@ -519,7 +524,8 @@ class mapcontourf(object):
                              forcelabel=forcelabel,
                              plotlev=plotlev,
                              plotlab=plotlab,
-                             cbarkw=cbarkw)
+                             cbarkw=cbarkw,
+                             show_colorbar=show_colorbar)
         #return
         self.m = mgmap.m
         self.cs = cs
