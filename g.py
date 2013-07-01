@@ -1860,7 +1860,8 @@ def Axes_get_bounds(axs):
     fig = axlist[0].get_figure()
     return [fig,(x0,x1,y0,y1)]
 
-def _get_axesrec_by_pos_offset(rec,pos,offset,width=None,height=None):
+def _get_axesrec_by_pos_offset(rec,pos,offset,width=None,height=None,
+                               middle=True):
     """
     Get the new rect by the old rec and pos,offset,width,height.
 
@@ -1875,7 +1876,8 @@ def _get_axesrec_by_pos_offset(rec,pos,offset,width=None,height=None):
 
     Notes:
     ------
-    A tentative function used in Axes_add_axes.
+    A tentative function used in Axes_add_axes. refer to g.Axes_add_axes
+        for more information on the parameters.
     """
     x0,x1,y0,y1 = rec
 
@@ -1915,13 +1917,28 @@ def _get_axesrec_by_pos_offset(rec,pos,offset,width=None,height=None):
 
     nx0,ny0 = get_origin(rec,pos,offset)
 
+
+    #handle the case to put axes right in the middle
+    span_width = x1-x0
+    span_height = y1-y0
+
+    if middle == True:
+        if pos in ['left','right']:
+            ny0 = ny0+(span_height-height)/2.
+        elif pos in ['above','below']:
+            nx0 = nx0+(span_width-width)/2.
+        else:
+            raise ValueError('pos error')
+    else:
+        pass
+
     return (nx0,ny0,width,height)
 
 
 
 
 def Axes_add_axes(relative=None,pos='right',offset=None,
-                  width=None,height=None,**kwargs):
+                  width=None,height=None,middle=True,**kwargs):
     """
     Add an axes relative to some other (group of) axes.
 
@@ -1937,6 +1954,7 @@ def Axes_add_axes(relative=None,pos='right',offset=None,
         the relative unless it's being forced. In case of the pos=
         'above/below', width will be calculated as the same of
         the relative unless it's being forced.
+    middle: boolean value. True to put the axes right in the middle.
 
     kwargs: kwargs used in mat.figure.Figure.add_axes
 
@@ -1953,7 +1971,8 @@ def Axes_add_axes(relative=None,pos='right',offset=None,
     [fig,rec] = Axes_get_bounds(relative)
     newrec = _get_axesrec_by_pos_offset(rec,pos,offset,
                                         width=width,
-                                        height=height)
+                                        height=height,
+                                        middle=middle)
 
     return fig.add_axes(newrec,**kwargs)
 
