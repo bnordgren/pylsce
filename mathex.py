@@ -9,6 +9,7 @@ import pb
 import pandas as pa
 import rpy2
 import g
+from scipy import interpolate
 
 def rolling_window(a, window):
     '''
@@ -1325,6 +1326,11 @@ def ndarray_categorize_data(array,interval_sequence):
         in the interval_sequence, all the elements before them form a
         close-open interval, i.e., the interval is like
         [a_1,a_2),[a_2,a_3),...,[a_{n-2},a_{n-1}),[a_{n-1},a_{n}].
+
+    Returns:
+    --------
+    (interval_list,array): interval_list is the string list of intervals,
+        and array is the categorized data.
     """
     if array.ndim > 1:
         raise ValueError("only accept one dimenional array!")
@@ -1343,7 +1349,7 @@ def ndarray_categorize_data(array,interval_sequence):
                     (interval_sequence[i],interval_sequence[i+1]),
                     left_close=True,right_close=True)
             outarray[idx] = keys[i]
-        return outarray
+        return (keys,outarray)
 
 def np_get_index(ndim,axis,slice_number):
     """
@@ -1525,6 +1531,14 @@ def dataframe_MultiIndex_to_column(df):
             dft[other_index_name] = df.ix[other_index_name][column_name]
         return dft
 
+
+def interp_level(level,num=2,kind='linear'):
+    """
+    Use scipy.interpolate.interp1d to interpolate the contourf levels.
+    """
+    orindex = np.arange(len(level)*num-(num-1))
+    f = interpolate.interp1d(orindex[0::num],level,kind=kind)
+    return f(orindex)
 
 
 
