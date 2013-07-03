@@ -388,6 +388,14 @@ def _creat_dict_of_tagaxes_by_tagseq_g(**kwargs):
 
     return axdic
 
+
+def pleg_merge(*pdlist):
+    """
+    Return a merged ProxyLegend for the Pdata objects.
+    """
+    pleglist = [pd.get_proleg() for pd in pdlist]
+    return g.ProxyLegend.merge_pleg(*pleglist)
+
 class Pdata(object):
     """
     There are two ways to set customized keyword, it can be done using add_attr_by_tag function or passed when calling ploting function. 
