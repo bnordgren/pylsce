@@ -756,6 +756,53 @@ def Set_Axes_Position(ax,pos,frac):
     else:
         print "use 'w' for width adjustment and 'h' for height adjustment"
 
+
+def Axes_adjust_position(ax,origin='lower left',width=0,height=0):
+    """
+    Adjust axes in place by using fractions of width and height.
+
+    Parameters:
+    -----------
+    origin: ['lower left','lower right','upper left','upper right','center'],
+        used to indicate the fixed position.
+    width/height: the fractions in terms of axes to increase/decrease.
+    """
+    box = ax.get_position()
+    x0,y0,x1,y1 = [box.x0,box.y0,box.x1,box.y1]
+    print 'old',x0,y0,x1,y1
+    orwidth = x1-x0
+    orheight = y1-y0
+
+    new_width = (1+width)*orwidth
+    new_height = (1+height)*orheight
+
+
+    if origin == 'lower left':
+        x1 = x0 + new_width
+        y1 = y0 + new_height
+    elif origin == 'lower right':
+        x0 = x1 - new_width
+        y1 = y0 + new_height
+    elif origin == 'upper left':
+        x1 = x0 + new_width
+        y0 = y1 - new_height
+    elif origin == 'upper right':
+        x0 = x1 - new_width
+        y0 = y1 - new_height
+    elif origin == 'center':
+        nx0 = x1 - new_width
+        nx1 = x0 + new_width
+        ny0 = y1 - new_height
+        ny1 = y0 + new_height
+        (x0,y0,x1,y1) = (nx0,ny0,nx1,ny1)
+    else:
+        raise ValueError("unkonwn origin")
+
+    newwidth = x1-x0
+    newheight = y1-y0
+    ax.set_position([x0, y0, newwidth, newheight])
+
+
 def Axes_Set_Axis_Locater(axes,major=None,minor=None,axis='x'):
     """
         Set x/y axis major and minor locators.
@@ -1716,6 +1763,23 @@ class ProxyLegend(object):
         proleg_new = ProxyLegend(self.data)
         return proleg_new
 
+    def set_new_tags(self, old_new_tag_tuple_list):
+        """
+        Change the old tag to new tag according to old_new_tag_tuple_list
+
+        Parameters:
+        -----------
+        old_new_tag_tuple_list: [(oldtag1,newtag1),(oldtag2,newtag2)]
+
+        Notes:
+        ------
+        1. In-place operation.
+        """
+        for (oldtag,newtag) in old_new_tag_tuple_list:
+            self.data[newtag] = self.data[oldtag]
+            del self.data[oldtag]
+            self.tags[self.tags.index(oldtag)] = newtag
+
     @staticmethod
     def _check_void_handle_label(label):
         if label == '':
@@ -1742,6 +1806,13 @@ class ProxyLegend(object):
 
 
     def create_legend(self,ax=None,tagseq=None,**kwargs):
+        """
+        Create legend.
+
+        Parameters:
+        -----------
+        kwargs: used in plt.legend function.
+        """
         handle_list,label_list=self._get_handle_label(tagseq)
         if ax != None:
             return ax.legend(handle_list,label_list,**kwargs)
@@ -1761,6 +1832,13 @@ class ProxyLegend(object):
             self.add_line_by_tag(lab,color=c,marker='o',ls='none',**kwargs)
 
     def create_legend_top(self,ax,tagseq=None,expand=True,**kwargs):
+        """
+        shortcut for creating legend above axes.
+
+        Parameters:
+        -----------
+        kwargs: used in plt.legend function.
+        """
         if expand==True:
             mode='expand'
         else:
