@@ -1,5 +1,6 @@
 import bsite as bsite
 import matplotlib
+matplotlib.use("Agg")
 import matplotlib as mat
 import matplotlib.pyplot as plt
 import numpy as np
