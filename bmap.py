@@ -541,16 +541,19 @@ class mapcontourf(object):
         self.trans_base_list = trans_base_list
         self.gmap = mgmap
 
-        cbar_ticks,cbar_labels = \
-            _generate_colorbar_ticks_label(data_transform=data_transform,
-                                           colorbarlabel=colorbarlabel,
-                                           trans_base_list=trans_base_list,
-                                           forcelabel=forcelabel,
-                                           plotlev=plotlev,
-                                           plotlab=plotlab)
+        if levels == None:
+            pass
+        else:
+            cbar_ticks,cbar_labels = \
+                _generate_colorbar_ticks_label(data_transform=data_transform,
+                                               colorbarlabel=colorbarlabel,
+                                               trans_base_list=trans_base_list,
+                                               forcelabel=forcelabel,
+                                               plotlev=plotlev,
+                                               plotlab=plotlab)
 
-        self.cbar_ticks = cbar_ticks
-        self.cbar_labels = cbar_labels
+            self.cbar_ticks = cbar_ticks
+            self.cbar_labels = cbar_labels
 
     def colorbar(self,cax=None,**kwargs):
         """
