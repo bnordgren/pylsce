@@ -2348,8 +2348,6 @@ class Ncdata(object):
                 else:
                     raise TypeError("dimred_func must be callable")
 
-                if regdict != None:
-
             return regdic
 
     def Plot_Vars(self,ax=None,varlist=None,npindex=np.s_[:],
