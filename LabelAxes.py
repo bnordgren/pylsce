@@ -23,6 +23,8 @@ class LabelAxes(object):
         #normal key:
         if isinstance(key,str):
             return [key]
+        elif isinstance(key,int):
+            return [self.tags[key]]
         else:
             if isinstance(key, slice):
                 return self.tags[key]
@@ -122,6 +124,13 @@ class LabelAxes(object):
         """
         for tag,ax in self.data.items():
             ax.__getattribute__(funcname)(*args,**kwargs)
+
+    def apply(self,func):
+        """
+        Apply function that applies on axes object.
+        """
+        for tag,ax in self.data.items():
+            func(ax)
 
 
 
