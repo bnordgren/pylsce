@@ -210,6 +210,8 @@ def _cm_contrast_2cmap(input_levels,**kwargs):
 
     Parameters:
     -----------
+    input_levels: could be levels in the bmap.mapcontourf method that serve
+        as input to method of pb.iteflat
     kwargs:
         cmap1: the first cmap
         cmap2: the second cmap
@@ -218,7 +220,8 @@ def _cm_contrast_2cmap(input_levels,**kwargs):
     cmap1 = kwargs.get('cmap1',mat.cm.autumn)
     cmap2 = kwargs.get('cmap2',mat.cm.summer_r)
     adjust = kwargs.get('adjust',0)
-    arr = np.array(input_levels)
+    levels = pb.iteflat(input_levels)
+    arr = np.array(levels)
     num1 = len(arr[arr<0])
     num2 = len(arr[arr>0])
     concat_cmap_list = [(cmap1,0,1,num1+adjust),(cmap2,0,1,num2)]
@@ -231,6 +234,8 @@ def cm_contrast_red2green(levels,**kwargs):
 
     Parameters:
     -----------
+    levels: could be levels in the bmap.mapcontourf method that serve
+        as input to method of pb.iteflat
     kwargs:
         cmap1: the first cmap
         cmap2: the second cmap
@@ -254,6 +259,17 @@ def cm_contrast_red2green(levels,**kwargs):
     """
     cmap1 = kwargs.pop('cmap1',mat.cm.autumn)
     cmap2 = kwargs.pop('cmap2',mat.cm.summer_r)
+    return _cm_contrast_2cmap(levels,cmap1=cmap1,cmap2=cmap2,**kwargs)
+
+
+def cm_contrast_red2blue(levels,**kwargs):
+    """
+    Constrast colormap for red2blue.
+    """
+    cm1 = cm_extract(mat.cm.gist_rainbow,(1,20),levnum=100)
+    cm2 = cm_extract(mat.cm.gist_rainbow,(60,80),levnum=100)
+    cmap1 = kwargs.pop('cmap1',cm1)
+    cmap2 = kwargs.pop('cmap2',cm2)
     return _cm_contrast_2cmap(levels,cmap1=cmap1,cmap2=cmap2,**kwargs)
 
 
@@ -1706,7 +1722,10 @@ class ProxyLegend(object):
             data.update(pleg.data)
             tags.extend(pleg.tags)
         plegnew = ProxyLegend(data)
-        plegnew.set_tag_order(tags)
+        if len(set(tags)) < len(tags):
+            raise ValueError('duplicate tags in the new taglist')
+        else:
+            plegnew.set_tag_order(tags)
         return plegnew
 
     def set_tag_order(self,tagseq=None):
@@ -2053,6 +2072,18 @@ def Axes_add_axes(relative=None,pos='right',offset=None,
                                         middle=middle)
 
     return fig.add_axes(newrec,**kwargs)
+
+
+def imshow(data,lognorm=False,ax=None,vmin=None,vmax=None):
+    if ax == None: fig,ax = Create_1Axes()
+    if vmin == None: vmin = np.ma.min(data)
+    if vmax == None: vmax = np.ma.max(data)
+    if lognorm == False:
+        norm = None
+    else:
+        norm = mat.colors.LogNorm(vmin=vmin,vmax=vmax)
+    cs = ax.imshow(data,norm=norm)
+    plt.colorbar(cs)
 
 
 
