@@ -1161,7 +1161,6 @@ class Pdata(object):
              + all other kwargs in axes.errorbar()
         **plot plot:
         **bar:
-            barcolor
         """
         if not isinstance(tagkw,(bool,str)):
             raise TypeError('''tagkw not bool or str type.''')
@@ -1301,6 +1300,9 @@ class Pdata(object):
         pd = self.regroup_data_by_tag(taglist)
         pd.set_tag_order(taglist)
         return pd
+
+    def __len__(self):
+        return len(self.taglist)
 
     def regroup_data_by_tag_keyword(self,tag_keyword):
         tags=self._taglist
@@ -1689,7 +1691,7 @@ class Pdata(object):
         #print '_bar',attr_dic
         return axes.bar(left, height, width=width, bottom=bottom, label=label, **kwargs)
 
-    def bar(self,axes=None,xticklabel=None,**kwargs):
+    def bar(self,axes=None,xticklabel=None,legend=True,**kwargs):
         self._barleftdic = {}
         axes=_replace_none_axes(axes)
         self._data_complete_check_all()
@@ -1702,7 +1704,7 @@ class Pdata(object):
                 tag_kwargs=kwargs.copy()
                 tag_plot_attr_dic=Dic_Remove_By_Subkeylist(tag_data,Pdata._all_nonplot_keylist)
                 tag_kwargs.update(tag_plot_attr_dic)
-                print 'tag & tag_kwargs',tag,tag_kwargs
+                #print 'tag & tag_kwargs',tag,tag_kwargs
                 _barleft = tag_data['x']-tag_data['bleftshift']*i-tag_data['bwidth']*0.5
                 self.Bar_Container[tag]=self._gbar(axes,_barleft,tag_data['y'],width=tag_data['bwidth'],\
                                                    bottom=tag_data['bbottom'],\
@@ -1717,6 +1719,13 @@ class Pdata(object):
             axes.set_xticks(xtickpos)
             if xticklabel != None:
                 axes.set_xticklabel(xticklabel)
+            colors = _replace_none_colorlist(num=len(self))
+            self.setp_tag(plottype='bar',color=colors)
+            if legend == True:
+                if self._check_empty_attribute('label'):
+                    self.set_legend('bar',taglab=True)
+                else:
+                    self.set_legend('bar',taglab=False)
             return self.Bar_Container
 
 
@@ -1865,10 +1874,17 @@ class Pdata(object):
         (handler_list,label_list) = self.get_handle_label(plottype=plottype,
                     taglab=taglab,tag_seq=tag_seq)
         if axes==None:
+            handler = handler_list[0]
             if not twinx:
-                axes=handler_list[0].get_axes()
+                try:
+                    axes=handler.get_axes()
+                except AttributeError:
+                    if isinstance(handler,mat.container.Container):
+                        axes = handler[0].get_axes()
+                    else:
+                        raise AttributeError("could not retrieve from handler")
             else:
-                axes=handler_list[0].get_axes().twinx()
+                axes=handler.get_axes().twinx()
         self.LegendAll=axes.legend(handler_list,
                                    label_list,**kwargs)
 
@@ -2000,6 +2016,32 @@ class Pdata(object):
             pd_temp.plot(ax=axt,legend=False,**plotkw)
         self.axes = axdic
         self.axdic = axdic
+        self.lax = LabelAxes(axdic.keys(),axdic.values())
+
+    def bar_split_axes(self,barkw={},**kwargs):
+        '''
+        Plot for each tag a separate subplot.
+
+        Parameters:
+        -----------
+        barkw: the keyword used in plt.plot function.
+        kwargs:
+            force_axs: force the axes.
+            tagseq: the tag sequence, default is self._taglist
+            force_axdic: force a dictionary of parent_tag/axes pairs.
+            ncols: num of columns when force_axs == None
+            sharex,sharey: the same as plt.subplots
+            tagpos: the position of parent_tag; None or False to suppress.
+            column_major: True if parent tags are deployed in column-wise.
+            unit: used as ylabel for each subplot
+            xlim: xlim
+            subkw: kwarg in plt.subplots function
+        '''
+        axdic = _creat_dict_of_tagaxes_by_tagseq_g(
+                        default_tagseq=self._taglist,**kwargs)
+        for tag,axt in axdic.items():
+            pd_temp=self.regroup_data_by_tag([tag])
+            pd_temp.bar(axes=axt,legend=False,**barkw)
         self.lax = LabelAxes(axdic.keys(),axdic.values())
 
     def set_text(self,textblock,pos='uc',ftdic={'size':12},**kwargs):
@@ -2442,13 +2484,53 @@ class NestPdata(object):
             pass
         else:
             legtag = _replace_none_by_given(legtag,self.parent_tags[0])
-            self.child_pdata[legtag].set_legend_all(taglab=True,
+            self.child_pdata[legtag].set_legend(plottype='line',taglab=True,
                                                 tag_seq=legtagseq,
                                                 **legkw)
         self.axes = axdic
         self.axdic = axdic
         self.lax = LabelAxes(axdic.keys(),axdic.values())
 
+    def bar_split_parent_tag(self,barkw={},legtag=None,
+                              legtagseq=None,legkw={},
+                              **kwargs):
+        """
+        Plot by using parent tags as label for subplots.
+
+        Parameters:
+        -----------
+        legtag: the child tag for which legend will be shown, False to supress.
+        legtagseq: the child tag sequence for the legtag.
+        legkw: used in plt.legend for the legtag
+        barkw: the keyword used in plt.plot function.
+        kwargs:
+            force_axs: force the axes.
+            tagseq: the sequence for parent tags.
+            force_axdic: force a dictionary of parent_tag/axes pairs.
+            ncols: num of columns when force_axs == None
+            sharex,sharey: the same as plt.subplots
+            tagpos: the position of parent_tag
+            column_major: True if parent tags are deployed in column-wise.
+            unit: used as ylabel for each subplot
+            xlim: xlim
+            barkw: the keyword used in plt.plot function.
+        """
+        axdic = _creat_dict_of_tagaxes_by_tagseq_g(
+                            default_tagseq=self.parent_tags,
+                            default_tagpos=(0.02,0.83),
+                            **kwargs)
+        for tag,axt in axdic.items():
+            pd_temp = self.child_pdata[tag]
+            pd_temp.bar(axes=axt,legend=False,**barkw)
+
+        if legtag == False:
+            pass
+        else:
+            legtag = _replace_none_by_given(legtag,self.parent_tags[0])
+            self.child_pdata[legtag].set_legend(plottype='bar',taglab=True,
+                                                tag_seq=legtagseq,
+                                                **legkw)
+        self.lax = LabelAxes(axdic.keys(),axdic.values())
 
     def plot_stackline_split_parent_tag(self,
                         fillkw={}, legdic={},
@@ -2589,15 +2671,21 @@ class NestPdata(object):
                                             tag_seq=legtagseq,**kwargs)
 
     def to_npd(self,filename):
+        """
+        File name must end with ".npd"
+        """
         if not filename.endswith('.npd'):
             raise ValueError('''filename not end with .npd''')
         else:
-            pb.pfdump(self.child_pdata,filename)
+            pb.pfdump(self.data,filename)
 
     @classmethod
     def open_npd(cls,filename):
         data = pb.pfload(filename)
-        return NestPdata(data)
+        dic = {}
+        for subptag,subpdic in data.items():
+            dic[subptag] = Pdata(data=subpdic)
+        return NestPdata(dic)
 
     @classmethod
     def from_dict_of_dataframe(cls,dict_dataframe,
@@ -2605,7 +2693,8 @@ class NestPdata(object):
                                index_func=None,
                                force_sharex=None):
         """
-        Create a NestPdata object from a dictionary of dataframe.
+        Create a NestPdata object from a dictionary of dataframe or pandas
+            panel data.
 
         Parameters:
         -----------
@@ -2626,6 +2715,12 @@ class NestPdata(object):
                                     force_sharex=force_sharex)
         return NestPdata(pddic)
 
+    def add_attr_by_tag(self,tagkw=False,**nested_attr_tag_value_dic):
+        """
+        The Pdata.add_attr_by_tag applied on each child pdata.
+        """
+        for subptag,child_pd in self.child_pdata.items():
+            child_pd.add_attr_by_tag(tagkw=tagkw,**nested_attr_tag_value_dic)
 
 
 class Mdata(Pdata):
