@@ -17,12 +17,14 @@ import pb
 import numpy as np
 import weakref
 from collections import Iterable
+from collections import OrderedDict
 import g
 import exio
 import copy as copy
 import bmap
 import Pdata_test as Ptest
 import gnc
+from LabelAxes import LabelAxes
 
 def append_doc_of(fun):
     def decorator(f):
@@ -246,15 +248,23 @@ def _build_list_of_axes_by_num(num,force_axs=None,ncols=None,
         fig,axt=plt.subplots(nrows=nrows, ncols=ncols,
                                  sharex=sharex, sharey=sharey,
                                  **kwargs)
-        if column_major == False:
-            axs=axt.flatten()[0:num]
+        if isinstance(axt,mat.axes.Axes):
+            axs=[axt]
         else:
-            axs = axt.flatten(order='F')[0:num]
+            if column_major == False:
+                axs=axt.flatten()[0:num]
+            else:
+                axs = axt.flatten(order='F')[0:num]
     else:
-        if num<=len(force_axs):
-            axs=force_axs[0:num]
+        if isinstance(force_axs,mat.axes.Axes):
+            axs = [force_axs]
+        elif isinstance(force_axs,(list,tuple,np.ndarray)):
+            if num<=len(force_axs):
+                axs=force_axs[0:num]
+            else:
+                raise ValueError("given force_axs length is smaller than required.")
         else:
-            raise ValueError("given force_axs length is smaller than required.")
+            raise TypeError("force_axs TypeError")
     return axs
 
 def _creat_dict_of_tagaxes_by_tagseq(force_axs=None,tagseq=None,
@@ -363,9 +373,7 @@ def _creat_dict_of_tagaxes_by_tagseq_g(**kwargs):
                                          sharex=sharex, sharey=sharey,
                                          column_major=column_major,
                                          **subkw)
-        if len(tag_list) == 1:
-            axs = [axs]
-        axdic = dict(zip(tag_list,axs))
+        axdic = OrderedDict(zip(tag_list,axs))
 
     #print 'default_tagpos before',default_tagpos
     for tag,axt in axdic.items():
@@ -487,6 +495,12 @@ class Pdata(object):
         self._taglist.append(tag)
 
     def _add_indata_by_tag_and_column(self,indata,tag,column):
+        if isinstance(indata,list):
+            indata = np.array(indata)
+        elif isinstance(indata,np.ndarray):
+            pass
+        else:
+            raise TypeError("Wrong data type {0}".format(type(indata)))
         self.data[tag][column]=indata
     def addx(self,indata,tag):
         self._add_indata_by_tag_and_column(indata,tag,'x')
@@ -640,6 +654,43 @@ class Pdata(object):
         else:
             pd.add_entry_sharex_noerror_by_dic(df,x=force_sharex)
         pd.set_tag_order(list(df.columns))
+        return pd
+
+    @classmethod
+    def from_dataframe_error(cls,df,df_func=None,index_func=None,
+                       force_sharex=None):
+
+        if force_sharex == None:
+            if index_func == None:
+                xvar = df.index.values
+            else:
+                xvar = index_func(df.index)
+        else:
+            xvar = force_sharex
+
+        error_list = ['_xerrl','_xerrh','_yerrl','_yerrh']
+        r = re.compile(r'(_xerrl$|_xerrh$|_yerrl$|_yerrh$)')
+        taglist = [tag for tag in df.columns if not r.search(tag)]
+        subtags_with_error = [tag[:-6] for tag in df.columns if r.search(tag)]
+
+        def treat_tag(tag):
+            subdic = {}
+            subdic['x'] = xvar
+            subdic['y'] = df[tag].values
+            if tag not in subtags_with_error:
+                return subdic
+            else:
+                for errname in error_list:
+                    if tag+errname in df.columns:
+                        subdic[errname[1:]] = df[tag+errname].values
+                return subdic
+
+
+
+        pd = Pdata()
+        for tag in taglist:
+            pd.add_entry_by_dic(**{tag:treat_tag(tag)})
+
         return pd
 
     def add_entry_singleYerror(self,x,y,yerr,tag):
@@ -935,7 +986,7 @@ class Pdata(object):
 
     def _get_err_by_tag(self,tag):
         """
-        Get xerr,yerr for tag; if both errl and errh is not None, the nx2
+        Get xerr,yerr for tag; if both errl and errh is not None, the (n,2)
             array returned; if errl!=None & errh==None,nx1 array returned;
             otherwise None returned.
 
@@ -1233,9 +1284,13 @@ class Pdata(object):
             taglist = taglist
         else:
             taglist = StringListAnotB(self._taglist,taglist)
-        targetdic=Dic_Extract_By_Subkeylist(self.data,taglist)
-        pdata=Pdata(targetdic)
-        return pdata
+
+        if len([tag for tag in taglist if tag not in self._taglist]) > 0:
+            raise KeyError("extract tag not present in the taglist!")
+        else:
+            targetdic=Dic_Extract_By_Subkeylist(self.data,taglist)
+            pdata=Pdata(targetdic)
+            return pdata
 
     def __getitem__(self,taglist):
         """
@@ -1598,11 +1653,14 @@ class Pdata(object):
         ef is short for 'ecolor follow', ef could be 'scatter','bar', if None, ecolor in self.data[tag]['ecolor'] is used, or it not present in self.data,
         _error_attr_default value will be used.
         """
+        self._errleftdic = self.get_data_as_dic('x')
+
         self._data_complete_check_all()
         if ef=='scatter':
             self._set_ecolor_by_scatter()
         elif ef == 'bar':
             self._set_ecolor_by_bar()
+            self._errleftdic = self._barleftdic
         elif ef=='none':
             pass
         else:
@@ -1620,7 +1678,7 @@ class Pdata(object):
                     tag_kwargs=kwargs.copy()
                     tag_plot_attr_dic=Dic_Remove_By_Subkeylist(tag_data,Pdata._all_nonplot_keylist)
                     tag_kwargs.update(tag_plot_attr_dic)  #here, tag_plot_attr_dic contains keys for all ploting types; tag_kwargs get contaminated.
-                    self.Errorbar_Lines[tag]=self._gerrorbar(axes,tag_data['x'],tag_data['y'],xerr=tag_xerr,yerr=tag_yerr,**tag_kwargs)
+                    self.Errorbar_Lines[tag]=self._gerrorbar(axes,self._errleftdic[tag],tag_data['y'],xerr=tag_xerr,yerr=tag_yerr,**tag_kwargs)
         return self.Errorbar_Lines
 
     def _gbar(self,axes,left,height,width=0.5,bottom=0,label=None,**kwargs):
@@ -1631,22 +1689,35 @@ class Pdata(object):
         #print '_bar',attr_dic
         return axes.bar(left, height, width=width, bottom=bottom, label=label, **kwargs)
 
-    def bar(self,axes=None,**kwargs):
+    def bar(self,axes=None,xticklabel=None,**kwargs):
+        self._barleftdic = {}
         axes=_replace_none_axes(axes)
         self._data_complete_check_all()
         if Is_Nested_Dic(kwargs):
             raise ValueError('tag specific plot attributes should be set by using add_attr_by_tag')
         else:
             self.Bar_Container={}  #Bar_Container --> <Container object of 10 artists> with matplotlib.patches.Rectangle as list members.
-            for tag,tag_data in self.data.items():
+            for i,tag in enumerate(self._taglist):
+                tag_data = self.data[tag]
                 tag_kwargs=kwargs.copy()
                 tag_plot_attr_dic=Dic_Remove_By_Subkeylist(tag_data,Pdata._all_nonplot_keylist)
                 tag_kwargs.update(tag_plot_attr_dic)
                 print 'tag & tag_kwargs',tag,tag_kwargs
-                self.Bar_Container[tag]=self._gbar(axes,tag_data['x']-tag_data['bleftshift']-tag_data['bwidth']*0.5,tag_data['y'],width=tag_data['bwidth'],\
+                _barleft = tag_data['x']-tag_data['bleftshift']*i-tag_data['bwidth']*0.5
+                self.Bar_Container[tag]=self._gbar(axes,_barleft,tag_data['y'],width=tag_data['bwidth'],\
                                                    bottom=tag_data['bbottom'],\
                                                    label=tag_data['label'],**tag_kwargs)
-        return self.Bar_Container
+                self._barleftdic[tag] = _barleft+tag_data['bwidth']*0.5
+                temp_bwidth = tag_data['bwidth']
+            xarray = np.array(self._barleftdic.values())
+            xtickpos = xarray.mean(axis=0)
+            xmin = np.min(xarray)-temp_bwidth
+            xmax = np.max(xarray)+temp_bwidth
+            axes.set_xlim(xmin,xmax)
+            axes.set_xticks(xtickpos)
+            if xticklabel != None:
+                axes.set_xticklabel(xticklabel)
+            return self.Bar_Container
 
 
     def _get_plot_attr_value_from_data(self,*attr_list):
@@ -1929,6 +2000,7 @@ class Pdata(object):
             pd_temp.plot(ax=axt,legend=False,**plotkw)
         self.axes = axdic
         self.axdic = axdic
+        self.lax = LabelAxes(axdic.keys(),axdic.values())
 
     def set_text(self,textblock,pos='uc',ftdic={'size':12},**kwargs):
         """
@@ -2282,6 +2354,11 @@ class NestPdata(object):
         self.child_pdata = dic_pdata
         self.child_tags = self.child_pdata.values()[0].list_tags()
 
+
+    def __repr__(self):
+        return """parent tags: {0}""".format(self.parent_tags) + '\n' +\
+        "child tags: {0}".format(self.child_tags)
+
     def set_new_tags(self,old_new_tag_tuple_list,mode='parent'):
         """
         Change the old tag to new tag according to old_new_tag_tuple_list
@@ -2370,6 +2447,7 @@ class NestPdata(object):
                                                 **legkw)
         self.axes = axdic
         self.axdic = axdic
+        self.lax = LabelAxes(axdic.keys(),axdic.values())
 
 
     def plot_stackline_split_parent_tag(self,
@@ -2406,6 +2484,7 @@ class NestPdata(object):
 
         self.axdic = axdic
         self.axes = axdic
+        self.lax = LabelAxes(axdic.keys(),axdic.values())
 
     def get_proleg(self,childtag=None,plottype='all',taglab=True,tag_seq=None):
         '''
@@ -2487,7 +2566,7 @@ class NestPdata(object):
             for npd in npdlist:
                 npd.permuate_tag()
                 new_npdlist.append(npd)
-            npd_merge = merge_npd(new_npdlist,mode='parent')
+            npd_merge = NestPdata.merge_npd(*new_npdlist,mode='parent')
             npd_merge.permuate_tag()
         return npd_merge
 
@@ -2527,9 +2606,20 @@ class NestPdata(object):
                                force_sharex=None):
         """
         Create a NestPdata object from a dictionary of dataframe.
+
+        Parameters:
+        -----------
+        dict_dataframe: could be a dict of dataframe or pandas panel data.
         """
+        if isinstance(dict_dataframe,pa.Panel):
+            dic = dict(dict_dataframe.iteritems())
+        elif isinstance(dict_dataframe,dict):
+            dic = dict_dataframe
+        else:
+            raise TypeError
+
         pddic = {}
-        for parent_tag,dataframe in dict_dataframe.items():
+        for parent_tag,dataframe in dic.items():
             pddic[parent_tag] = Pdata.from_dataframe(dataframe,
                                     df_func=df_func,
                                     index_func=index_func,
@@ -2582,7 +2672,7 @@ class Mdata(Pdata):
             self.add_array(ydata,tag)
 
     @classmethod
-    def from_dict_of_array(cls,ydic,npindex=None):
+    def from_dict_of_array(cls,ydic,npindex=None,lat=None,lon=None):
         if npindex == None:
             ydicnew = ydic
         else:
@@ -2592,10 +2682,11 @@ class Mdata(Pdata):
 
         md = Mdata()
         md.add_entry_array_bydic(ydicnew)
+        md.add_attr_by_tag(lat=lat,lon=lon)
         return md
 
     @classmethod
-    def from_ndarray(cls,arr,tagaxis=0,taglist=None):
+    def from_ndarray(cls,arr,tagaxis=0,taglist=None,lat=None,lon=None):
         if np.ndim(arr) != 3:
             raise ValueError('''array ndim is {0}, only 3 is valid'''.
                                 format(arr.ndim))
@@ -2608,7 +2699,8 @@ class Mdata(Pdata):
         else:
             raise ValueError("unknown tagaxis!")
         taglist = _replace_none_by_given(taglist,np.arange(len(datalist))+1)
-        return Mdata.from_dict_of_array(dict(zip(taglist,datalist)))
+        return Mdata.from_dict_of_array(dict(zip(taglist,datalist)),
+                                        lat=lat,lon=lon)
 
     def add_entry_share_latlon_bydic(self,ydic,lat=None,lon=None):
         for tag,ydata in ydic.items():
@@ -2652,6 +2744,7 @@ class Mdata(Pdata):
             imgdic[tag] = img
         self.axdic = axdic
         self.imgdic = imgdic
+        self.lax = LabelAxes(axdic.keys(),axdic.values())
 
         if cbar == True:
             self.colorbar('img',**cbarkw)
@@ -2729,6 +2822,7 @@ class Mdata(Pdata):
 
         self.axdic = axdic
         self.mapimgdic = mapimg
+        self.lax = LabelAxes(axdic.keys(),axdic.values())
 
     def mapcontourf_split_axes(self, projection='cyl',mapbound='all',
                                gridstep=(30,30),shift=False,
@@ -2786,6 +2880,7 @@ class Mdata(Pdata):
             mapconfdic[tag] = mapconf
         self.axdic = axdic
         self.mapconfdic = mapconfdic
+        self.lax = LabelAxes(axdic.keys(),axdic.values())
 
     def apply_function(self,func=None,taglist=None,copy=False):
         '''
