@@ -696,6 +696,17 @@ def d2ymean(cmi):
         raise ValueError('the array has more than 4 dimension!')
     return cmiyear
 
+
+def d2m(data,mode='sum'):
+    """
+    Transform the daily data to monthly data.
+
+    Notes:
+    ------
+    1. Default calendar is noleap and the length of the first dimension
+    """
+    pass
+
 def ncGet_OLS_Trend(infile,outfile,varlist='all',reginterval=None):
     """
     Purpose: Do OLS linear regression for varialbe list in the 'infile' and write the data to 'outfile' 
@@ -1539,6 +1550,41 @@ def interp_level(level,num=2,kind='linear'):
     orindex = np.arange(len(level)*num-(num-1))
     f = interpolate.interp1d(orindex[0::num],level,kind=kind)
     return f(orindex)
+
+
+
+def Ncdata_dict_to_dataframe_panel(Ncdata_dict,variables,mode='spasum',index=None):
+    """
+    Add to dataframe or panel data from a dictionary of Ncdata.
+
+    Parameters:
+    -----------
+    mode: could be spasum or spamean
+    variables:
+        in case of a single variables, a dataframe will be returned.
+        in case of a list of variables, a panel will be returned.
+    """
+
+    def retrieve_by_mode(Ncdata_obj,mode):
+        if mode in ['spasum','spamean']:
+            return Ncdata_obj.__getattribute__(mode)
+        else:
+            raise KeyError
+
+    if isinstance(variables,str):
+        dic= {}
+        for key,ncobj in Ncdata_dict.items():
+            dic[key] = retrieve_by_mode(ncobj,mode).__dict__[variables]
+        return pa.DataFrame(dic,index=index)
+    elif isinstance(variables,list):
+        dic = {}
+        for key,ncobj in Ncdata_dict.items():
+            subdic = {}
+            for var in variables:
+                subdic[var] = retrieve_by_mode(ncobj,mode).__dict__[var]
+            dic[key] = pa.DataFrame(subdic,index=index)
+        return pa.Panel(dic)
+
 
 
 
