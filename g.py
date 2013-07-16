@@ -2074,6 +2074,20 @@ def Axes_add_axes(relative=None,pos='right',offset=None,
     return fig.add_axes(newrec,**kwargs)
 
 
+def Axes_set_visible(ax,visible=False):
+    """
+    Set a Axes "invisible" by setting frame and x/y axis ticks as None
+    """
+    if not visible:
+        ax.set_frame_on(False)
+        ax.xaxis.set_visible(False)
+        ax.yaxis.set_visible(False)
+    else:
+        ax.set_frame_on(True)
+        ax.xaxis.set_visible(True)
+        ax.yaxis.set_visible(True)
+
+
 def imshow(data,lognorm=False,ax=None,vmin=None,vmax=None):
     if ax == None: fig,ax = Create_1Axes()
     if vmin == None: vmin = np.ma.min(data)
