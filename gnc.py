@@ -19,7 +19,7 @@ import os
 import sys
 
 home_dir = os.path.expanduser('~')
-pylab_dir = home_dir+'/'+'python/python_lib'
+pylab_dir = home_dir+'/'+'python'
 basedata_dir = pylab_dir + '/basedata'
 
 def append_doc_of(fun):
@@ -293,7 +293,7 @@ def txt2nc_HalfDegree(filename,name_list=None,varname_list=None,name_keyword=Fal
     -----------
     name_list: the name_list allows a flexible way to write txt to netcdf files.
         1. when name_list is a string, write only from one txt file, varname_list should also be a string specifying the varialbe name that's in the new nc file.
-        2. when name_list is a string:
+        2. when name_list is a list of string:
             2.1 when name_keyword is True, the members in the name_list will be used as nameid together with common_prefix_in_name and name_surfix to construct the complete
                 file names, the nameid will be automacatilly used as variable names. In this case varname_list will be overwritten if it's not None
             2.2 when name_keyword is False, the members in name_list should indicate full path of txt files, and strings in varname_list will be used as the varialble names
@@ -762,6 +762,7 @@ class NcWrite(object):
         elif nc.__version__ == '0.9.7':
             for key,value in glob_attr_dic.items():
                 self.rootgrp.setncattr(key,value)
+
 
 def _set_default_ncfile_for_write(ncfile,**kwargs):
     '''
@@ -2266,7 +2267,7 @@ class Ncdata(object):
     def break_by_region(self,varname,separation_array,
                         forcedata=None,
                         pyfunc=None,dimred_func=None,
-                        pftsum=False):
+                        pftsum=False,regdict=None):
         """
         Break the concerned variables into regional sum or avg or extracted array by specifying the separation_array.
 
@@ -2274,7 +2275,9 @@ class Ncdata(object):
         -----------
         separation_array: The array that's used to separate different regions.
             the np.unique(separation_array) will be used as the keys for
-            the dictionary which will be returned by the function.
+            the dictionary which will be returned by the function. If
+            separation_array is a masked array, the final masked value
+            in the np.unique result will be dropped.
         forcedata: used to force input data.
         pyfunc:
             in case of function, used to change the regional array data;
@@ -2309,6 +2312,10 @@ class Ncdata(object):
 
         regdic={}
         unique_array = np.unique(separation_array)
+        if np.ma.isMA(unique_array):
+            unique_array = unique_array.compressed()
+        else:
+            pass
         unique_array = unique_array.astype(int)
         #we need to avoid the duplicates after moldering the type into int.
         if len(np.unique(unique_array)) < len(unique_array):
@@ -2340,6 +2347,8 @@ class Ncdata(object):
                         raise ValueError("strange the dimension of data is less than 2!")
                 else:
                     raise TypeError("dimred_func must be callable")
+
+                if regdict != None:
 
             return regdic
 
@@ -2407,7 +2416,7 @@ class Ncdata(object):
             if mask_by == None:
                 return data
             elif isinstance(mask_by,np.ndarray):
-                return mathex.ndarray_mask_smart_apply(data,mask)
+                return mathex.ndarray_mask_smart_apply(data,mask_by)
             elif isinstance(mask_by,tuple):
                 varname = mask_by[0]
                 map_threshold = mask_by[1]
@@ -2555,6 +2564,8 @@ class Ncdata(object):
                                               npindex=npindex,
                                               grid=grid)
         return pa.DataFrame(dic,index=index)
+
+
 
 
 def nc_get_var_value_grid(ncfile,varname,(vlat1,vlat2),(vlon1,vlon2),
