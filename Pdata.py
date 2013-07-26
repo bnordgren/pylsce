@@ -24,7 +24,7 @@ import copy as copy
 import bmap
 import Pdata_test as Ptest
 import gnc
-from LabelAxes import LabelAxes
+import LabelAxes
 
 def append_doc_of(fun):
     def decorator(f):
@@ -648,7 +648,7 @@ class Pdata(object):
             df = df_func(df)
         if force_sharex == None:
             if index_func == None:
-                pd.add_entry_sharex_noerror_by_dic(df,x=df.index)
+                pd.add_entry_sharex_noerror_by_dic(df,x=df.index.values)
             else:
                 pd.add_entry_sharex_noerror_by_dic(df,x=index_func(df.index))
         else:
@@ -2016,7 +2016,7 @@ class Pdata(object):
             pd_temp.plot(ax=axt,legend=False,**plotkw)
         self.axes = axdic
         self.axdic = axdic
-        self.lax = LabelAxes(axdic.keys(),axdic.values())
+        self.lax = LabelAxes.LabelAxes(axdic.keys(),axdic.values())
 
     def bar_split_axes(self,barkw={},**kwargs):
         '''
@@ -2042,7 +2042,7 @@ class Pdata(object):
         for tag,axt in axdic.items():
             pd_temp=self.regroup_data_by_tag([tag])
             pd_temp.bar(axes=axt,legend=False,**barkw)
-        self.lax = LabelAxes(axdic.keys(),axdic.values())
+        self.lax = LabelAxes.LabelAxes(axdic.keys(),axdic.values())
 
     def set_text(self,textblock,pos='uc',ftdic={'size':12},**kwargs):
         """
@@ -2418,8 +2418,11 @@ class NestPdata(object):
                 self.child_pdata[newtag] = self.child_pdata[oldtag]
                 del self.child_pdata[oldtag]
                 self.parent_tags[self.parent_tags.index(oldtag)] = newtag
+        elif mode == 'child':
+            for pd in self.child_pdata.values():
+                pd.set_new_tags(old_new_tag_tuple_list)
         else:
-            raise ValueError("mode child not implemented!")
+            raise ValueError("mode not understood.")
 
     def set_parent_tag_order(self,taglist):
         self.parent_tags = taglist[:]
@@ -2446,6 +2449,14 @@ class NestPdata(object):
             self.child_pdata[parent_tag] = pdata_temp
         self.child_tags = ptags
 
+
+
+    def apply(self,func=None,axis=None,taglist='all'):
+        npdnew = self.copy()
+        for ptag,pd in npdnew.child_pdata.items():
+            npdnew.child_pdata[ptag] = pd.apply_function(func=func,
+                taglist=taglist,axis=axis,copy=True)
+        return npdnew
 
 
     def plot_split_parent_tag(self,plotkw={},legtag=None,
@@ -2489,7 +2500,7 @@ class NestPdata(object):
                                                 **legkw)
         self.axes = axdic
         self.axdic = axdic
-        self.lax = LabelAxes(axdic.keys(),axdic.values())
+        self.lax = LabelAxes.LabelAxes(axdic.keys(),axdic.values())
 
     def bar_split_parent_tag(self,barkw={},legtag=None,
                               legtagseq=None,legkw={},
@@ -2530,7 +2541,7 @@ class NestPdata(object):
             self.child_pdata[legtag].set_legend(plottype='bar',taglab=True,
                                                 tag_seq=legtagseq,
                                                 **legkw)
-        self.lax = LabelAxes(axdic.keys(),axdic.values())
+        self.lax = LabelAxes.LabelAxes(axdic.keys(),axdic.values())
 
     def plot_stackline_split_parent_tag(self,
                         fillkw={}, legdic={},
@@ -2566,7 +2577,7 @@ class NestPdata(object):
 
         self.axdic = axdic
         self.axes = axdic
-        self.lax = LabelAxes(axdic.keys(),axdic.values())
+        self.lax = LabelAxes.LabelAxes(axdic.keys(),axdic.values())
 
     def get_proleg(self,childtag=None,plottype='all',taglab=True,tag_seq=None):
         '''
@@ -2593,18 +2604,20 @@ class NestPdata(object):
         nestpd = NestPdata(nestpd_dic)
         return nestpd
 
-    @staticmethod
-    def _regroup_parent_tag(nestpd,taglist):
-        nestpd_dic = Dic_Extract_By_Subkeylist(nestpd.child_pdata,taglist)
-        return NestPdata(nestpd_dic)
+    def _regroup_parent_tag(self,taglist):
+        nestpd_dic = Dic_Extract_By_Subkeylist(self.child_pdata,taglist)
+        if nestpd_dic == {}:
+            raise AttributeError("the taglist does not include any original tag")
+        else:
+            return NestPdata(nestpd_dic)
 
     def regroup_data_by_tag(self,taglist,keyword=True,mode='parent'):
         if mode == 'parent':
-            return self._regroup_parent_tag(self,taglist)
+            return self._regroup_parent_tag(taglist)
         elif mode == 'child':
             nestpd_dic_pre = self.copy()
             nestpd_dic_pre.permuate_tag()  #change the child to parent
-            nestpd = self._regroup_parent_tag(nestpd_dic_pre,taglist)
+            nestpd = nestpd_dic_pre._regroup_parent_tag(taglist)
             nestpd.permuate_tag()  #change back
             return nestpd
         else:
@@ -2619,6 +2632,17 @@ class NestPdata(object):
             taglist = [taglist]
         npd = self.regroup_data_by_tag(taglist,mode='parent')
         npd.set_parent_tag_order(taglist)
+        return npd
+
+    def child_xs(self,taglist):
+        """
+        simple implementation of Pdata.NestPdata.regroup_data_by_tag, with
+            slicing mode in child tags.
+        """
+        if isinstance(taglist,str):
+            taglist = [taglist]
+        npd = self.regroup_data_by_tag(taglist,mode='child')
+        npd.set_child_tag_order(taglist)
         return npd
 
     @classmethod
@@ -2652,7 +2676,7 @@ class NestPdata(object):
             npd_merge.permuate_tag()
         return npd_merge
 
-    def setp_tag(self,plottype,tagkw=False,**nested_attr_tag_value_dic):
+    def setp_tag(self,plottype='all',tagkw=False,**nested_attr_tag_value_dic):
         '''
         Example: npd.setp_tag('line',lw=dict(wrong=1),alpha=dict(wrong=0.6),
                                color=dict(right='m'),zorder=dict(right=4))
@@ -2669,6 +2693,12 @@ class NestPdata(object):
         legtag = _replace_none_by_given(legtag,self.parent_tags[0])
         self.child_pdata[legtag].set_legend_all(taglab=True,
                                             tag_seq=legtagseq,**kwargs)
+
+    def to_Panel(self):
+        dic = {}
+        for subptag,pd in self.child_pdata.items():
+            dic[subptag] = pd.to_DataFrame()
+        return pa.Panel(dic)
 
     def to_npd(self,filename):
         """
@@ -2721,6 +2751,104 @@ class NestPdata(object):
         """
         for subptag,child_pd in self.child_pdata.items():
             child_pd.add_attr_by_tag(tagkw=tagkw,**nested_attr_tag_value_dic)
+
+class Pdata3D(object):
+    """
+    Initialize with a dictionary of NestPdata
+    """
+    def __init__(self,dic_npd):
+        if not isinstance(dic_npd,OrderedDict):
+            raise TypeError("not a OrderedDict")
+        else:
+            self.child_npd = dic_npd
+            cnpd1 = self.child_npd.values()[0]
+            self.labels = dic_npd.keys()
+            self.parent_tags = cnpd1.parent_tags
+            self.child_tags = cnpd1.child_tags
+
+    def __getitem__(self,key):
+        if isinstance(key,str):
+            return self.child_npd[key]
+        elif isinstance(key,list):
+            dic = OrderedDict()
+            npds = [self.child_npd[label] for label in key]
+            return Pdata3D(OrderedDict(zip(key,npds)))
+
+    def iteritems(self):
+        for label in self.labels:
+            yield label,self.child_npd[label]
+
+    @classmethod
+    def from_Panel4D(cls,p4d):
+        npdlist = []
+        for label in p4d.labels:
+            npd = NestPdata.from_dict_of_dataframe(p4d[label])
+            npdlist.append(npd)
+        dic = OrderedDict(zip(p4d.labels,npdlist))
+        return Pdata3D(dic)
+
+    def to_Panel4D(self):
+        dic = {}
+        for label,npd in self.iteritems():
+            dic[label] = npd.to_Panel()
+        return pa.Panel4D(dic)
+
+    def __repr__(self):
+        return "labels: {0}".format(self.labels)+ '\n' +\
+        """parent tags: {0}""".format(self.parent_tags) + '\n' +\
+        "child tags: {0}".format(self.child_tags)
+
+
+    def plot_icecore(self,legkw={},add_label=True,legtag=False,plotkw={},**kwargs):
+        """
+        Parameters:
+        -----------
+        legtag: the child tag for which legend will be shown, False to supress.
+        legtagseq: the child tag sequence for the legtag.
+        legkw: used in plt.legend for the legtag
+        plotkw: the keyword used in plt.plot function.
+        kwargs:
+            force_axs: force the axes.
+            tagseq: the sequence for parent tags.
+            force_axdic: force a dictionary of parent_tag/axes pairs.
+            ncols: num of columns when force_axs == None
+            sharex,sharey: the same as plt.subplots
+            tagpos: the position of parent_tag
+            column_major: True if parent tags are deployed in column-wise.
+            unit: used as ylabel for each subplot
+            xlim: xlim
+            plotkw: the keyword used in plt.plot function.
+        """
+        axdic = _creat_dict_of_tagaxes_by_tagseq_g(
+                            default_tagseq=self.parent_tags,
+                            default_tagpos=(0.02,0.83),
+                            **kwargs)
+
+        lax = LabelAxes.LabelAxes(tags=axdic.keys(),axl=axdic.values())
+        dic = lax.build_icecore(num=len(self.labels),keys=self.labels[::-1])
+        lax2D = LabelAxes.LabelAxes2D(dic)
+        for label,npd in self.iteritems():
+            npd.plot_split_parent_tag(plotkw=plotkw,legtag=legtag,tagpos=False,
+                              force_axdic=lax2D[label].data)
+
+        self.lax2D = lax2D
+        if add_label == True:
+            lax2D.add_parent_label(pos=(0.02,0.8))
+            lax2D.add_child_label()
+
+
+    def get_proleg2D(self,childtag=None,plottype='all',taglab=True,tag_seq=None):
+        plegs = []
+        for label,npd in self.iteritems():
+            plegs.append(npd.get_proleg(childtag=childtag,plottype=plottype,
+                                        taglab=taglab,tag_seq=tag_seq))
+        return g.ProxyLegend2D(OrderedDict(zip(self.labels,plegs)))
+
+
+    def setp_tag(self,label=None,plottype='all',tagkw=False,**nested_attr_tag_value_dic):
+        """
+        """
+        self.child_npd[label].setp_tag(plottype='all',tagkw=tagkw,**nested_attr_tag_value_dic)
 
 
 class Mdata(Pdata):
@@ -2839,7 +2967,7 @@ class Mdata(Pdata):
             imgdic[tag] = img
         self.axdic = axdic
         self.imgdic = imgdic
-        self.lax = LabelAxes(axdic.keys(),axdic.values())
+        self.lax = LabelAxes.LabelAxes(axdic.keys(),axdic.values())
 
         if cbar == True:
             self.colorbar('img',**cbarkw)
@@ -2917,7 +3045,7 @@ class Mdata(Pdata):
 
         self.axdic = axdic
         self.mapimgdic = mapimg
-        self.lax = LabelAxes(axdic.keys(),axdic.values())
+        self.lax = LabelAxes.LabelAxes(axdic.keys(),axdic.values())
 
     def mapcontourf_split_axes(self, projection='cyl',mapbound='all',
                                gridstep=(30,30),shift=False,
@@ -2975,7 +3103,7 @@ class Mdata(Pdata):
             mapconfdic[tag] = mapconf
         self.axdic = axdic
         self.mapconfdic = mapconfdic
-        self.lax = LabelAxes(axdic.keys(),axdic.values())
+        self.lax = LabelAxes.LabelAxes(axdic.keys(),axdic.values())
 
     def apply_function(self,func=None,taglist=None,copy=False):
         '''
