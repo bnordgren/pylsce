@@ -18,6 +18,7 @@ import pb
 import rpy2
 import copy
 from collections import Iterable
+from collections import OrderedDict
 #import rpy
 
 
@@ -69,10 +70,11 @@ def show_cmap(cmap=mat.cm.jet,levnum=10):
     """
     show the effect of a colormap
     """
+    fig,ax = Create_1Axes()
     dt = np.arange(1,levnum+1)
     dt = np.tile(dt[:,np.newaxis][::-1],(1,levnum))
-    plt.imshow(dt,cmap=cmap)
-    plt.colorbar()
+    cs = ax.imshow(dt,cmap=cmap)
+    plt.colorbar(cs)
 
 def show_cmap_all():
     # This example comes from the Cookbook on www.scipy.org.  According to the
@@ -954,7 +956,7 @@ def Calc_Newaxes_Fraction(posor, split_fraction, direction='vertical'):
     """
     x0, y0, width, height = posor
     newpos_list = []
-    if np.sum(np.array(split_fraction)) != 1:
+    if not np.allclose(np.sum(np.array(split_fraction)),1):
         raise ValueError("The split_fraction list sum is not 1")
     else:
         newfrac = np.cumsum(np.array(split_fraction))
@@ -984,6 +986,23 @@ def Calc_Newaxes_Fraction(posor, split_fraction, direction='vertical'):
                                 .format(direction))
         return np.array(newpos_list)
 
+def Axes_Replace_by_IceCore(ax,num,direction='vertical'):
+    """
+    Replace axes by a series of axes that looks like the ice core figures.
+    """
+    fig = ax.get_figure()
+    split_fraction = np.array([1./num] *(num*2-1))
+    split_fraction[1::2] = 0.
+    axs = Axes_Replace_Split_Axes(fig,ax,split_fraction)
+    map(lambda ax:ax.xaxis.set_visible(False),axs[1:])
+    axs[0].xaxis.set_ticks_position('bottom')
+    map(lambda ax:ax.spines['top'].set_visible(False),axs[1:-1])
+    map(lambda ax:ax.spines['bottom'].set_visible(False),axs[1:-1])
+    axs[0].spines['top'].set_visible(False)
+    axs[-1].spines['bottom'].set_visible(False)
+    map(lambda ax:ax.yaxis.set_ticks_position('left'),axs[0::2])
+    map(lambda ax:ax.yaxis.set_ticks_position('right'),axs[1::2])
+    return axs
 
 def Axes_Replace_Split_Axes(fig, axes_remove, split_fraction, direction='vertical'):
     """
@@ -1027,10 +1046,10 @@ def Axes_Replace_Split_Axes(fig, axes_remove, split_fraction, direction='vertica
     posor = axes_remove.get_position()
     height_or = posor.y1 - posor.y0
     width_or = posor.x1 - posor.x0
-    print posor
-    print width_or, height_or
+    #print posor
+    #print width_or, height_or
     newaxes_pos = Calc_Newaxes_Fraction([posor.x0, posor.y0, width_or, height_or], split_fraction, direction=direction)
-    print newaxes_pos
+    #print newaxes_pos
     fig.delaxes(axes_remove)
     for x0new,y0new,widthnew,heightnew in newaxes_pos:
         newaxes_list.append(fig.add_axes([x0new, y0new, widthnew, heightnew]))
@@ -1708,6 +1727,10 @@ class ProxyLegend(object):
         else:
             self.tags = self.data.keys()
 
+    def __repr__(self):
+        return '\n'.join([repr(self.__class__),
+                          "tags:",','.join(self.tags)])
+
     @classmethod
     def merge_pleg(cls,*pleglist):
         '''
@@ -1923,6 +1946,55 @@ class ProxyLegend(object):
         for tag,tag_attr_subdic in plot_attr_tag_dic.items():
             self.add_line_by_tag(tag,**tag_attr_subdic)
 
+class ProxyLegend2D(object):
+    """
+    Initialize by a OrderDict of ProxyLegend objects.
+    """
+    def __init__(self,plegdic):
+        if not isinstance(plegdic,OrderedDict):
+            raise TypeError("must be OrderedDict of ProxyLegend objects")
+        else:
+            if not isinstance(plegdic.values()[0],ProxyLegend):
+                raise TypeError('dict values must be ProxyLegend objects')
+            else:
+                self.child_pleg = plegdic
+                self.parent_tags = plegdic.keys()
+                self.child_tags = plegdic.values()[0].tags
+
+
+    def __repr__(self):
+        return '\n'.join([repr(self.__class__),
+                          "parent_tags:",','.join(self.parent_tags),
+                          "child_tags:",','.join(self.child_tags)])
+
+
+    def collapse(self,mode='parent'):
+        """
+        """
+        if mode == 'parent':
+            newtaglist = []
+            newhanles = []
+            for ctag in self.child_tags:
+                for ptag in self.parent_tags:
+                    newtaglist.append(ctag+'('+ptag+')')
+                    newhanles.append(self.child_pleg[ptag].data[ctag])
+            pleg = ProxyLegend(OrderedDict(zip(newtaglist,newhanles)))
+            pleg.set_tag_order(newtaglist)
+            return pleg
+        elif mode == 'child':
+            newtaglist = []
+            newhanles = []
+            for ptag in self.parent_tags:
+                for ctag in self.child_tags:
+                    newtaglist.append(ptag+'('+ctag+')')
+                    newhanles.append(self.child_pleg[ptag].data[ctag])
+            pleg = ProxyLegend(OrderedDict(zip(newtaglist,newhanles)))
+            pleg.set_tag_order(newtaglist)
+            return pleg
+        else:
+            raise ValueError("unknown mode")
+
+
 
 def Axes_get_bounds(axs):
     """
@@ -2078,14 +2150,21 @@ def Axes_set_visible(ax,visible=False):
     """
     Set a Axes "invisible" by setting frame and x/y axis ticks as None
     """
-    if not visible:
-        ax.set_frame_on(False)
-        ax.xaxis.set_visible(False)
-        ax.yaxis.set_visible(False)
+    def set_vis(ax,visible):
+        if not visible:
+            ax.set_frame_on(False)
+            ax.xaxis.set_visible(False)
+            ax.yaxis.set_visible(False)
+        else:
+            ax.set_frame_on(True)
+            ax.xaxis.set_visible(True)
+            ax.yaxis.set_visible(True)
+    if isinstance(ax,mat.axes.Axes):
+        set_vis(ax,visible)
+    elif isinstance(ax,(list,np.ndarray)):
+        map(lambda ax:set_vis(ax,visible),ax)
     else:
-        ax.set_frame_on(True)
-        ax.xaxis.set_visible(True)
-        ax.yaxis.set_visible(True)
+        raise TypeError("wrong ax type")
 
 
 def imshow(data,lognorm=False,ax=None,vmin=None,vmax=None):
