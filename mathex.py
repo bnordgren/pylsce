@@ -1452,6 +1452,37 @@ def dataframe_extract_statistic_info(df,target_field=None,groupby_field='geoinde
     return dfall
 
 
+def dataframe_to_panel_by_colgroup(df,keylist,prefix='',surfix=''):
+    """
+    transfer a dataframe into panel by separating the columns into different
+        groups by keywords.
+
+    Parameters:
+    -----------
+    keylist: a list of strings indicating the keylists used to group the
+        columns.
+    """
+    if not isinstance(keylist,(list,tuple,np.ndarray)):
+        raise TypeError("wrong keylist type")
+    else:
+        dft = df.transpose()
+        gplist = []
+        for subcol in dft.index.values:
+            for key in keylist:
+                if key in subcol:
+                    gplist.append(key)
+                    break
+        dftgp = dft.groupby(gplist)
+        ordic = dict(iter(dftgp))
+        dic = {}
+        for key,dft in ordic.items():
+            dft = dft.transpose()
+            dic[key] = dft.rename(columns=lambda s:s.replace(prefix+key+surfix,''))
+        return pa.Panel(dic)
+        #return dic
+
+
+
 def dataframe_change_geoindex_to_tuple(df):
     """
     change the string type of geoindex to tuple.
@@ -1585,6 +1616,8 @@ def Ncdata_dict_to_dataframe_panel(Ncdata_dict,variables,mode='spasum',index=Non
             dic[key] = pa.DataFrame(subdic,index=index)
         return pa.Panel(dic)
 
+def ndarray_year_to_decade(array):
+    pass
 
 
 
