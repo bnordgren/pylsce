@@ -73,7 +73,6 @@ def find_index_by_vertex(globHDlon, globHDlat, (vlon1,vlon2), (vlat1,vlat2)):
     ------
     1. To retrieve the data from derived indexes, one should use:
         np.s_[lat_index_min:lat_index_max+1, lon_index_min:lon_index_max+1]
-
     """
     lon_index = np.nonzero((globHDlon >= vlon1) & (globHDlon <= vlon2))[0]
     lon_index_min = np.min(lon_index)
@@ -1718,7 +1717,7 @@ class Ncdata(object):
                 pass
         set_title_unit(axt,map_title,map_unit,agre_title_complement)
 
-    def map(self,mapvarname,
+    def map(self,mapvarname=None,
             forcedata=None,mapdim=None,
             agremode=None,pyfunc=None,mask=None,
             unit=None,title=None,pftsum=False,mask_value=None,
@@ -1920,6 +1919,8 @@ class Ncdata(object):
         Purpose: find the index specified by (vla1,vlat2),(vlon1,vlon2)
         Return: (lon_index_min, lon_index_max, lat_index_min, lat_index_max)
         Note: This is a direct application of gnc.find_index_by_vertex.
+        1. To retrieve the data from derived indexes, one should use:
+            np.s_[lat_index_min:lat_index_max+1, lon_index_min:lon_index_max+1]
         """
         return find_index_by_vertex(self.lonvar, self.latvar, (vlon1,vlon2), (vlat1,vlat2))
 
@@ -2264,7 +2265,47 @@ class Ncdata(object):
                                          lat=self.lat,lon=self.lon)
         return md
 
-    def break_by_region(self,varname,separation_array,
+
+    def _find_mask(self):
+        """
+        Find the land/seak mask if there is any.
+        """
+        geoshape = (len(self.lat),len(self.lon))
+        for varname in self.varlist:
+            vardata = self.d1.__dict__[varname]
+            if vardata.shape[-2:] == geoshape:
+                if np.ma.isMA(vardata):
+                    return vardata.mask
+                else:
+                    return None
+            else:
+                raise ValueError("""No variable found with corresponidng lat/lon
+                                  dimension.""")
+
+
+    def _generate_separray_by_dataframe(self,dataframe):
+        """
+        Generate an separation array for later usage in break_region.
+
+        Parameters:
+        -----------
+        1. the dataframe should have "lat1,lat2,lon1,lon2,region" as column
+            names.
+        """
+        for name in ['lat1','lat2','lon1','lon2','region']:
+            if name not in dataframe.columns:
+                raise ValueError("{0} not a column name of dataframe").format(name)
+        region_name_dic = {}
+        separation_array = np.ma.masked_all((len(self.lat),len(self.lon)),dtype=np.int)
+        for i,(index,row) in dataframe.iterrows():
+            region_name_dic[i] = row['region']
+            vlat1,vlon1,vlat2,vlon2 = row['lat1'],row['lon1'],row['lat2'],row['lon2']
+            (lon_index_min, lon_index_max, lat_index_min, lat_index_max) = \
+                self.find_index_by_vertex((vlat1,vlat2),(vlon1,vlon2))
+            separation_array[lat_index_min:lat_index_max+1, lon_index_min:lon_index_max+1] = i
+        return region_name_dic,separation_array
+
+    def break_by_region(self,varname,separation,
                         forcedata=None,
                         pyfunc=None,dimred_func=None,
                         pftsum=False,regdict=None):
@@ -2273,11 +2314,17 @@ class Ncdata(object):
 
         Parameters:
         -----------
-        separation_array: The array that's used to separate different regions.
-            the np.unique(separation_array) will be used as the keys for
-            the dictionary which will be returned by the function. If
-            separation_array is a masked array, the final masked value
-            in the np.unique result will be dropped.
+        separation:
+            1. In case of an array:
+                The array that's used to separate different regions.
+                the np.unique(separation_array) will be used as the keys for
+                the dictionary which will be returned by the function. If
+                separation_array is a masked array, the final masked value
+                in the np.unique result will be dropped.
+            2. In case of a dataframe:
+                The dataframe should have "lat1,lat2,lon1,lon2,region" as column
+                names, and the method _generate_separray_by_dataframe is used
+                to produce a separation_array to handle.
         forcedata: used to force input data.
         pyfunc:
             in case of function, used to change the regional array data;
@@ -2300,15 +2347,30 @@ class Ncdata(object):
 
         Returns:
         --------
-        region_dic: A dictionary with the region ID as keys and the region arrays or mean or sum as key values.
+        region_dic:
+            A dictionary with the region ID/names as keys and the region
+            arrays or mean or sum as key values.
+
         """
         print "dimred_func will be removed in the future!"
+
+        #treat varname and forcedata
         if pftsum == True:
             vardata = self.pftsum.__dict__[varname]
         else:
             vardata = self.d1.__dict__[varname]
         if forcedata != None:
             vardata = forcedata
+
+        #treat separation object
+        if isinstance(separation,np.ndarray):
+            namedic = None
+            separation_array = separation
+        elif isinstance(separation,pa.DataFrame):
+            namedic,separation_array = \
+                self._generate_separray_by_dataframe(separation)
+        else:
+            raise TypeError("separation could only be np.ndarray or dataframe.")
 
         regdic={}
         unique_array = np.unique(separation_array)
@@ -2324,6 +2386,9 @@ class Ncdata(object):
             moldered into int type.
             """)
         else:
+            if namedic == None:
+                namedic = dict(zip(unique_array,unique_array))
+
             for reg_id in unique_array:
                 reg_valid = np.ma.masked_not_equal(separation_array,reg_id)
                 annual_reg = mathex.ndarray_apply_mask(vardata,mask=reg_valid.mask)
@@ -2339,10 +2404,10 @@ class Ncdata(object):
                     data = annual_reg
 
                 if dimred_func == None:
-                    regdic[reg_id] = data
+                    regdic[namedic[reg_id]] = data
                 elif callable(dimred_func):
                     if data.ndim >= 2:
-                        regdic[reg_id] = dimred_func(dimred_func(data,axis=-1),axis=-1)
+                        regdic[namedic[reg_id]] = dimred_func(dimred_func(data,axis=-1),axis=-1)
                     else:
                         raise ValueError("strange the dimension of data is less than 2!")
                 else:
