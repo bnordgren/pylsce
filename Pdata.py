@@ -589,7 +589,8 @@ class Pdata(object):
         -----------
         mapdict: a dictionary specifying the mapping between
             dataframe columns and the keynames in Pdata, i.e.,
-            ['x'/'y'/'yerrh'...]
+            ['x'/'y'/'yerrh'...]. Note the column names must
+            be the keys of mapdict.
         """
         def replace_dict_by_mapping(dfdict,mapdict):
             """
@@ -731,7 +732,7 @@ class Pdata(object):
         """
         #convert pandas dataframe to dict
         if isinstance(ydic,pa.DataFrame):
-            newydic={}
+            newydic=OrderedDict()
             for key in ydic.columns:
                 newydic[key]=np.array(ydic[key])
             taglist = list(ydic.columns)
@@ -807,6 +808,14 @@ class Pdata(object):
                 entry_dic[basic_key]=np.array(tag_df[df_colname])
             self.add_entry_by_dic(**{tag:entry_dic})
 
+
+    def to_csv(self,tag,fname):
+        """
+        use pandas dataframe object to output the tag into csv file.
+        """
+        df = pa.DataFrame({'x':self.data[tag]['x'],
+                           'y':self.data[tag]['y']})
+        df.to_csv(fname,index=False)
 
     def list_tags(self,tagkw=None):
         """
@@ -1300,6 +1309,15 @@ class Pdata(object):
         pd = self.regroup_data_by_tag(taglist)
         pd.set_tag_order(taglist)
         return pd
+
+    def data_ix(self,ls):
+        """
+        Use [tag,item] list to retrieve data for one tag.
+        """
+        return self.data[ls[0]][ls[1]]
+
+    def __repr__(self):
+        return '\n'.join([repr(self.__class__),"tags:",','.join(self.taglist)])
 
     def __len__(self):
         return len(self.taglist)
@@ -1826,7 +1844,7 @@ class Pdata(object):
 
     def set_xdata_by_ydata_by_tag(self,tag):
         """
-        Set the xdata of all tags to the ydata of the specified tag.
+        Fill the xdata of all tags by the ydata of the specified tag.
 
         Notes:
         ------
@@ -1837,6 +1855,22 @@ class Pdata(object):
         for temptag in remain_taglist:
             targetdic[temptag]['x'] = self.data[tag]['y']
         return Pdata(targetdic)
+
+    def collapse_xdata_as_tag(self,tag,newxdata=None):
+        """
+        Collapse the xdata as a tag, use newxdata to set the newxdata
+            for all tags.
+        """
+        dic = self.data.copy()
+        if newxdata == None:
+            newxdata = np.arange(len(dic[self.taglist[0]]['x']))
+        else:
+            pass
+
+        for tag,subdic in dic.items():
+            dic[tag]['x'] = newxdata
+        dic[tag] = {'x':newxdata,'y':self.data[self.taglist[0]]['x']}
+        return Pdata(dic)
 
     def get_handle_label(self,plottype='all',taglab=False,tag_seq=None):
         handler_list=[]
@@ -2206,6 +2240,7 @@ class Pdata(object):
             raise ValueError("This can only be use for sharex=True, please specify this explicitly or check data length for each tag.")
         return outdic
 
+
     def to_DataFrame(self,tagindex=False,col_name=None,df_index=None):
         """
         Change the data to DataFrame
@@ -2401,6 +2436,18 @@ class NestPdata(object):
         return """parent tags: {0}""".format(self.parent_tags) + '\n' +\
         "child tags: {0}".format(self.child_tags)
 
+    def iteritems(self):
+        for ptag in self.parent_tags:
+            yield ptag,self.child_pdata[ptag]
+
+    def data_ix(self,ls):
+        """
+        Use a list to retrieve the final data.
+
+        ls: ['ptag','ctag','x/y/...']
+        """
+        return self.data[ls[0]][ls[1]][ls[2]]
+
     def set_new_tags(self,old_new_tag_tuple_list,mode='parent'):
         """
         Change the old tag to new tag according to old_new_tag_tuple_list
@@ -2425,7 +2472,10 @@ class NestPdata(object):
             raise ValueError("mode not understood.")
 
     def set_parent_tag_order(self,taglist):
-        self.parent_tags = taglist[:]
+        if sorted(self.parent_tags) != sorted(taglist):
+            raise ValueError("new parent_tags not equal to old one")
+        else:
+            self.parent_tags = taglist[:]
 
     def set_child_tag_order(self,taglist):
         for ptag in self.parent_tags:
@@ -2452,11 +2502,73 @@ class NestPdata(object):
 
 
     def apply(self,func=None,axis=None,taglist='all'):
-        npdnew = self.copy()
-        for ptag,pd in npdnew.child_pdata.items():
-            npdnew.child_pdata[ptag] = pd.apply_function(func=func,
+        """
+        Apply a function either 'x' or 'y' axis or 'both' or 'diff', if
+            axis=='diff', func should be supplied with a dictionary by
+            using ('x'/'y',x_func/y_func) pairs.
+
+        Returns:
+        --------
+        npd object
+        """
+        dic = OrderedDict()
+        for ptag,pd in self.iteritems():
+            dic[ptag] = pd.apply_function(func=func,
                 taglist=taglist,axis=axis,copy=True)
-        return npdnew
+        return NestPdata(dic)
+
+
+    def pool_data_by_tag(self,mode='child',tagkw=False,**group_dic):
+        """
+        Pool the data together by specifying new_tag=[old_tag_list] pairs;
+            when tagkw==True, it's allowed to use new_tag=old_tag_keyword to
+            specify what old tags will be pooled together which will
+            include old_tag_keyword. Other attributes outside the
+            _data_base_keylist will be copied from the first old_tag of
+            the old_tag_list.
+        Example:
+            pool_data_by_tag(alldry=['1stdry','2nddry','3rddry'],
+                allwet=['wet1','wet2'])
+            pool_data_by_tag(tagkw=True,alldry='dry')
+        """
+        dic = OrderedDict()
+        if mode == 'child':
+            for ptag,cpd in self.iteritems():
+                dic[ptag] = cpd.pool_data_by_tag(tagkw=tagkw,**group_dic)
+            return NestPdata(dic)
+        elif mode == 'parent':
+            npdt = self.copy()
+            npdt.permuate_tag()
+            npdt2= npdt.pool_data_by_tag(self,mode='child',tagkw=tagkw,**group_dic)
+            npdt2.permuate_tag()
+            return npdt2
+
+
+
+        if tagkw==True:
+            group_dic_final={}
+            tags=self._taglist
+            for newtag,newtag_tagkw in group_dic.items():
+                group_dic_final[newtag]=FilterStringList(newtag_tagkw,tags)
+        else:
+            group_dic_final=group_dic
+
+        pdata=Pdata()
+        for newtag in group_dic_final.keys():
+            old_tag_list=group_dic_final[newtag]
+            old_entry_list=[self._fill_errNone_with_Nan(tag) for
+                                tag in old_tag_list]
+            new_entry=Pdata.Hstack_Dic_By_Key(old_entry_list,
+                                              Pdata._data_base_keylist)
+            #for _extra_base_keylist attributes, their default value in
+            #_new_entry will be supplied to the new tag (pooled) data.
+            #all other ploting attributes in _plot_attr_dic.values(),
+            #they're lost.
+            first_old_tag=old_tag_list[0]
+            new_entry.update(Dic_Remove_By_Subkeylist(self.data[first_old_tag],
+                                                      Pdata._data_base_keylist))
+            pdata.add_entry_by_dic(**{newtag:new_entry})
+        return pdata
 
 
     def plot_split_parent_tag(self,plotkw={},legtag=None,
@@ -2579,9 +2691,20 @@ class NestPdata(object):
         self.axes = axdic
         self.lax = LabelAxes.LabelAxes(axdic.keys(),axdic.values())
 
+    def set_xdata_by_ydata_by_tag(self,child_tag):
+        """
+        For each child_pdata, call the Pdata.Pdata.set_xdata_by_ydata_by_tag
+            to fill the xdata by the ydata of a speficified child_tag.
+        """
+        dic = OrderedDict()
+        for ptag,pd in self.iteritems():
+            dic[ptag] = pd.set_xdata_by_ydata_by_tag(child_tag)
+        return NestPdata(dic)
+
+
     def get_proleg(self,childtag=None,plottype='all',taglab=True,tag_seq=None):
         '''
-        Return the proxy legend for the NestedPdata after plotting.
+        Return the proxy legend for the NestPdata after plotting.
 
         Notes:
         ------
@@ -2622,6 +2745,10 @@ class NestPdata(object):
             return nestpd
         else:
             raise ValueError("unknown mode.")
+
+
+    #def collapse_to_Pdata(self,mode='parent'):
+        #if mode = 'parent'
 
     def __getitem__(self,taglist):
         """
@@ -2850,6 +2977,25 @@ class Pdata3D(object):
         """
         self.child_npd[label].setp_tag(plottype='all',tagkw=tagkw,**nested_attr_tag_value_dic)
 
+    def set_label_order(self,labseq=None):
+        """
+        Set tag order and this order will be kept throughout all the class
+        method when default taglist is used.
+        """
+        if sorted(self.labels) == sorted(labseq):
+            self.labels = labseq[:]
+        else:
+            raise ValueError('ordered labels not equal to present one')
+
+    def set_parent_tag_order(self,taglist):
+        for ptag,npd in self.iteritems():
+            npd.set_parent_tag_order(taglist)
+        self.parent_tags = taglist[:]
+
+    def set_child_tag_order(self,taglist):
+        for ptag,npd in self.iteritems():
+            npd.set_child_tag_order(taglist)
+        self.child_tags = taglist[:]
 
 class Mdata(Pdata):
     _data_base_keylist=['array','lat','lon']
@@ -3134,6 +3280,7 @@ class Mdata(Pdata):
         data=copy.deepcopy(self.data)
         md = Mdata(data)
         return md
+
 
     #@append_doc_of(gnc._set_default_ncfile_for_write)
     def to_ncfile(self,filename,**kwargs):
