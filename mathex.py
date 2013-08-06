@@ -1010,8 +1010,8 @@ def linreg_OLS_2var(x,y):
     if y.ndim>=2 or x.ndim>=2:
         raise ValueError('only 1D array could be supplied')
     else:
-        y=pb.MaskArrayByNan(y)
-        x=pb.MaskArrayByNan(x)
+        y=np.ma.masked_invalid(y)
+        x=np.ma.masked_invalid(x)
         x,y=pb.shared_unmask_data(x,y)
         slope, intercept, r_value, p_value, std_err = stats.linregress(x,y)
         result=dict()
@@ -1181,6 +1181,37 @@ def ndarray_apply_mask(indata,mask):
     newmask = ones*mask
     return np.ma.masked_array(indata,mask=newmask)
 
+def ndarray_duplicate_element_by_array(arr1,arr2):
+    """
+    Duplicate each element in arr1[i] by the corresponding value of
+        arr2[i], if arr2[i]==0, then arr1[i] will be dropped in final
+        output, if all elements of arr2 is zero, then a None value
+        will be returned.
+
+    Parameters:
+    -----------
+    arr1,arr2: 1-dim ndarray with equal length, arr2 must be interger type.
+    """
+    if len(arr1.shape) > 1 or len(arr2.shape) > 1:
+        raise TypeError("could only be 1-dim array")
+    elif len(arr1) != len(arr2):
+        raise TypeError("the length not equal for two input array")
+    else:
+        if not issubclass(arr2.dtype.type,np.integer):
+            raise TypeError("arr2 is not integer type!")
+        else:
+            clist = []
+            for i,j in zip(arr1,arr2):
+                if j == 0:
+                    pass
+                else:
+                    clist.append(np.array([i]*j))
+            if clist == []:
+                return None
+            else:
+                return np.concatenate(clist)
+
+
 def ndarray_list_check_unique_shape(list_of_ndarray):
     """
     check if all the ndarrays in the list have the same dimension.
@@ -1194,6 +1225,7 @@ def ndarray_list_check_unique_shape(list_of_ndarray):
             unique_dim = False
             break
     return unique_dim
+
 
 
 def ndarray_multi_func(func,*arrays):
@@ -1324,7 +1356,7 @@ def ndarray_get_index_by_interval(array,interval,left_close=True,
         extract_slice = np.nonzero((array > interval[0])&(array < interval[1]))
     return extract_slice
 
-def ndarray_categorize_data(array,interval_sequence):
+def ndarray_categorize_data(array,interval_sequence,numeric_output=False):
     """
     Return an string array corresponding which is the result of categorizing
         the input array by the given interval sequence.
@@ -1338,6 +1370,11 @@ def ndarray_categorize_data(array,interval_sequence):
         close-open interval, i.e., the interval is like
         [a_1,a_2),[a_2,a_3),...,[a_{n-2},a_{n-1}),[a_{n-1},a_{n}].
 
+    Parameters:
+    -----------
+    1. numeric_output: boolean type. If it's True, then the output
+        array will be integer array containing 1--> number of intervals
+
     Returns:
     --------
     (interval_list,array): interval_list is the string list of intervals,
@@ -1350,6 +1387,7 @@ def ndarray_categorize_data(array,interval_sequence):
                 i in range(len(interval_sequence)-1)]
         maxlen = max(map(len,keys))
         outarray = np.empty_like(array,dtype='S'+str(maxlen))
+        numeric_outarray = np.ones(array.shape,dtype=int)
         for i in range(len(interval_sequence)-1):
             if i != len(interval_sequence)-2:
                 idx = ndarray_get_index_by_interval(array,
@@ -1360,7 +1398,12 @@ def ndarray_categorize_data(array,interval_sequence):
                     (interval_sequence[i],interval_sequence[i+1]),
                     left_close=True,right_close=True)
             outarray[idx] = keys[i]
-        return (keys,outarray)
+            numeric_outarray[idx] = i+1
+
+        if numeric_output:
+            return (keys,numeric_outarray)
+        else:
+            return (keys,outarray)
 
 def np_get_index(ndim,axis,slice_number):
     """
@@ -1618,6 +1661,7 @@ def Ncdata_dict_to_dataframe_panel(Ncdata_dict,variables,mode='spasum',index=Non
 
 def ndarray_year_to_decade(array):
     pass
+
 
 
 
