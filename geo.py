@@ -260,6 +260,27 @@ def Add_Feature_to_Axes_Polygon(ax,feature,transfunc=None):
 
 
 
+def dataframe_column_from_array_by_geoindex(geoindex,arrdic):
+    """
+    Create dataframe from a dict of arrays using the geoindex input. The
+        array value that correspond to a geoindex slice will be used
+        to fill the column values.
+
+    Parameters:
+    -----------
+    geoindex: an array (or iterable) containing tuples as its member,
+        the tuples will be used to retrieve values from arrays.
+    arrdic: a dict of arrays. The dict keys will be used as the
+        output dataframe column names.
+    """
+    dic = {}
+    for colname,arr in arrdic.items():
+        if not np.ma.isMA(arr):
+            dic[colname] = [arr[sl] for sl in geoindex]
+        else:
+            dic[colname] = [arr[sl] if arr.mask[sl] != True else None for sl in geoindex]
+    return pa.DataFrame(dic,index=geoindex)
+
 def dataframe_build_geoindex_from_lat_lon(df,lat_name='lat',
                                           lon_name='lon',
                                           lat=None,lon=None):
