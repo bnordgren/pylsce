@@ -832,18 +832,18 @@ def Axes_Set_Axis_Locater(axes,major=None,minor=None,axis='x'):
         axes.yaxis.set_major_locator(plt.MultipleLocator(major))
         axes.yaxis.set_minor_locator(plt.MultipleLocator(minor))
 
-def Set_FigText(fig,figtext):
-    fig.text(0.5,0.95,figtext,horizontalalignment='center',va='center')
+def Set_FigText(fig,figtext,**kwargs):
+    fig.text(0.5,0.95,figtext,horizontalalignment='center',va='center',**kwargs)
 
-def Set_Figxlabel(fig,figtext,pos=(0.5,0.04),ha='center'):
+def Set_Figxlabel(fig,figtext,pos=(0.5,0.04),ha='center',**kwargs):
     x=pos[0]
     y=pos[1]
-    return fig.text(x,y,figtext,ha=ha,rotation='horizontal')
+    return fig.text(x,y,figtext,ha=ha,rotation='horizontal',**kwargs)
     
-def Set_Figylabel(fig,figtext,pos=(0.08,0.5),va='center'):
+def Set_Figylabel(fig,figtext,pos=(0.08,0.5),va='center',**kwargs):
     x=pos[0]
     y=pos[1]
-    return fig.text(x,y,figtext,va=va,ha='center',rotation='vertical')
+    return fig.text(x,y,figtext,va=va,ha='center',rotation='vertical',**kwargs)
 
 def Fig_Save_Close(fig,figname):
     fig.savefig(figname)
