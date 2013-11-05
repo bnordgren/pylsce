@@ -40,6 +40,7 @@ class OrchideeAggregation(object) :
             fname = "%s_%d.nc" % ( basename, year ) 
         self._fname = fname
         self._openAggregate()
+        self._initProspects()
 
     def _openAggregate(self) : 
         """Checks for an existing file. Opens it if possible, creates
@@ -53,7 +54,18 @@ class OrchideeAggregation(object) :
     def _openExemplar(self) : 
         """Opens one of the input files and returns the handle. You must
         close it. """
-        return nc.Dataset("%s_0000_%d.nc" % (self._basename, self._year))
+        return self.openSource(0)
+
+    def openSource(self, cpu) : 
+        """Opens one of the input files and returns the handle. You must
+        close it. You provide the cpu number associated with the file. """
+        return nc.Dataset("%s_%04d_%d.nc" % (self._basename, cpu, self._year))
+
+    def _initProspects(self) : 
+        """Grabs a list of variables from one of the input files."""
+        f = self._openExemplar()
+        self.prospects = f.variables.keys()
+        f.close()
 
     def _initDomain(self) : 
         """Initializes the spatial domain information in the output file."""
@@ -133,6 +145,31 @@ class OrchideeAggregation(object) :
 
         return self._ncfile.variables[var]
 
+    def locate_source(self, lat, lon) : 
+        """Locates the source file which contains the specified point."""
+        cpu = 0
+        found = False
+        while (not found) and (cpu < self._cpus) : 
+            src = self.openSource(cpu)
+            first = src.DOMAIN_position_first
+            last  = src.DOMAIN_position_last
+            # make sure lat/lon are in ascending order for comparison
+            lat_range = [first[1], last[1]]
+            lon_range = [first[0], last[0]]
+            lat_range.sort()
+            lon_range.sort()
+            found = ( (lat_range[0] <= lat) and (lat <= lat_range[1]) and
+                      (lon_range[0] <= lon) and (lon <= lon_range[1]))
+            if not found : 
+                cpu+=1
+            src.close()
+
+        if not found : 
+            cpu = None
+
+        return cpu
+
+        
     def close(self) : 
         self._ncfile.close()
 
