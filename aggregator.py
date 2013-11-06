@@ -28,7 +28,38 @@ def make_transform(x0, y0, xsize, ysize, i0=0, j0=0) :
     matrix = np.array( [[xsize, 0, xt0], [0, ysize, yt0], [0, 0, 1]])
     return AffineTransform(matrix)
 
-class OrchideeAggregation(object) : 
+class NetCDFCopier (object) :  
+    """An abstract superclass to support the copying of variables and
+    dimensions between netcdf files. The child class needs to set a 
+    self._ncfile property for the output and needs to provide an 
+    "_openExemplar()" method which returns a handle to an open 
+    netCDF dataset from the source file."""
+
+    def copyDimension(self, dim) : 
+        """If the named dimension does not exist in the output file, 
+        it is created and the coordinate variable is copied."""
+        if dim in self._ncfile.dimensions : 
+            return
+
+        infile = self._openExemplar()
+        d = infile.dimensions[dim] 
+        self._ncfile.createDimension(dim, len(d))
+
+        if dim in infile.variables :
+            dim_copy = self._ncfile.createVariable(dim, 
+                infile.variables[dim].dtype,
+                (dim,))
+
+            dim_copy[:] = infile.variables[dim][:]
+
+        infile.close()
+
+    def close(self) : 
+        self._ncfile.close()
+
+
+
+class OrchideeAggregation(NetCDFCopier) : 
     """This class remembers some key characteristics about a source 
     fileset so that aggregate variables may be written to an output 
     file."""
@@ -98,25 +129,6 @@ class OrchideeAggregation(object) :
 
         infile.close()
 
-    def copyDimension(self, dim) : 
-        """If the named dimension does not exist in the output file, 
-        it is created and the coordinate variable is copied."""
-        if dim in self._ncfile.dimensions : 
-            return
-
-        infile = self._openExemplar()
-        d = infile.dimensions[dim] 
-        self._ncfile.createDimension(dim, len(d))
-
-        if dim in infile.variables :
-            dim_copy = self._ncfile.createVariable(dim, 
-                infile.variables[dim].dtype,
-                (dim,))
-
-            dim_copy[:] = infile.variables[dim][:]
-
-        infile.close()
-
     def aggregate_var(self, var) : 
         # Don't aggregate same variable more than once
         if var in self._ncfile.variables : 
@@ -170,9 +182,6 @@ class OrchideeAggregation(object) :
         return cpu
 
         
-    def close(self) : 
-        self._ncfile.close()
-
 
 def aggregate_var(basename, cpus, year, variable) :
     first = True
