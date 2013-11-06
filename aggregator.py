@@ -35,6 +35,12 @@ class NetCDFCopier (object) :
     "_openExemplar()" method which returns a handle to an open 
     netCDF dataset from the source file."""
 
+    def _initProspects(self) : 
+        """Grabs a list of variables from one of the input files."""
+        f = self._openExemplar()
+        self.prospects = f.variables.keys()
+        f.close()
+
     def copyDimension(self, dim) : 
         """If the named dimension does not exist in the output file, 
         it is created and the coordinate variable is copied."""
@@ -91,12 +97,6 @@ class OrchideeAggregation(NetCDFCopier) :
         """Opens one of the input files and returns the handle. You must
         close it. You provide the cpu number associated with the file. """
         return nc.Dataset("%s_%04d_%d.nc" % (self._basename, cpu, self._year))
-
-    def _initProspects(self) : 
-        """Grabs a list of variables from one of the input files."""
-        f = self._openExemplar()
-        self.prospects = f.variables.keys()
-        f.close()
 
     def _initDomain(self) : 
         """Initializes the spatial domain information in the output file."""

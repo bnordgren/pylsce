@@ -40,6 +40,7 @@ class RestartFileFixer (NetCDFCopier) :
         self._basename = basename
         self._year     = year
         self._openFixed()
+        self._initProspects()
 
     def _openFixed(self) : 
         """Attempts to open the output (fixed) restart file"""
@@ -88,7 +89,6 @@ class RestartFileFixer (NetCDFCopier) :
 
         # Ensure that all the required dimensions are present
         for dim in dims :
-            print 'Copying dimension %s.' % (dim,)
             self.copyDimension(dim) 
 
         # get the missing value
