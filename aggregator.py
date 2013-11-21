@@ -157,6 +157,19 @@ class OrchideeAggregation(NetCDFCopier) :
 
         return self._ncfile.variables[var]
 
+    def list_domains(self) : 
+        """Collects the local domains of each component file."""
+        domains = [] 
+        for cpu in range(self._cpus) : 
+            src = self.openSource(cpu)
+            first = src.DOMAIN_position_first
+            last  = src.DOMAIN_position_last
+
+            domains.append( (first, last) ) 
+            src.close()
+
+        return domains
+
     def locate_source(self, lat, lon) : 
         """Locates the source file which contains the specified point."""
         cpu = 0
@@ -217,15 +230,29 @@ def aggregate_var(basename, cpus, year, variable) :
                 i_dim = i_dim + 1
                 
             
+            raw_window = list(window)
+            raw_window[i_lon] = all_data
+            raw_window[i_lat] = slice(1,None)
             agg = ma.masked_equal(np.zeros(global_shape, dtype=dtype),0)
 
         l_origin = nc_file.DOMAIN_position_first - 1
         l_max    = nc_file.DOMAIN_position_last 
+
+        # Orchidee files "overlap" in the y/lat direction. These 
+        # overlapping lines need to be merged with data which has already
+        # been loaded into the aggregate array. In order to not
+        # make assumptions about how cpu numbering relates to layout
+        # on the global domain, or even about the amount of overlap,
+        # information in the new array is allowed to overwrite only 
+        # those cells which are masked out in the aggregate array.
         raw      = nc_file.variables[variable][:]
 
         window[i_lat] = slice(l_origin[1], l_max[1])
         window[i_lon] = slice(l_origin[0], l_max[0])
-        agg[window] = raw
+        orig = agg[window]
+        ind = np.where(orig.mask)
+        orig[ind] = raw[ind]
+        agg[window] = orig
 
         nc_file.close()
 
