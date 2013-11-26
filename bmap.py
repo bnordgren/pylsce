@@ -36,6 +36,11 @@ class gmap(object):
             to projection coords; latind/lonind --> index for lat/lon
             falling with mapbound
         2. lat must be descending and lon must be ascending.
+
+    Parameters:
+    -----------
+    kwargs: used for basemap.Basemap method.
+
     Example:
         >>> fig,ax=g.Create_1Axes()
         >>> m,lonpro,latpro,lonind,latind=bmap.gmap(ax,'cyl',mapbound='all',lat=np.arange(89.75,-89.8,-0.5),lon=np.arange(-179.75,179.8,0.5),gridstep=(30,30))
@@ -74,6 +79,10 @@ class gmap(object):
                         lat1 = lat1-0.25
                     if lat2%0.25 == 0:
                         lat2 = lat2+0.25
+                    if lon1%0.25 == 0:
+                        lon1 = lon1-0.25
+                    if lon2%0.25 == 0:
+                        lon2 = lon2+0.25
                 if lat1<-85:
                     lat1=-90.
                 if lat2>85:
@@ -300,6 +309,7 @@ def _generate_map_prepare_data(data=None,lat=None,lon=None,
                                cmap=None,
                                smartlevel=None,
                                data_transform=False,
+                               gmapkw={},
                                ax=None):
     """
     This function makes the map, and transform data for ready
@@ -307,7 +317,7 @@ def _generate_map_prepare_data(data=None,lat=None,lon=None,
     """
     if shift==True:
         data,lon=bmp.shiftgrid(180,data,lon,start=False)
-    mgmap=gmap(ax,projection,mapbound,lat,lon,gridstep)
+    mgmap=gmap(ax,projection,mapbound,lat,lon,gridstep,**gmapkw)
     m,lonpro,latpro,latind,lonind = (mgmap.m, mgmap.lonpro, mgmap.latpro,
                                     mgmap.latind, mgmap.lonind)
 
@@ -333,6 +343,7 @@ def _set_colorbar(m,cs,colorbardic={},
                   colorbarlabel=None,
                   trans_base_list=None,
                   forcelabel=None,
+                  show_colorbar=True,
                   plotlev=None,
                   plotlab=None,
                   cbarkw={}):
@@ -340,23 +351,26 @@ def _set_colorbar(m,cs,colorbardic={},
     Wrap the process for setting colorbar.
     """
     #handle the colorbar attributes by using dictionary which flexibility.
-    location = colorbardic.get('location','right')
-    size = colorbardic.get('size','3%')
-    pad = colorbardic.get('pad','2%')
-    cbar=m.colorbar(cs,location=location, size=size, pad=pad,**cbarkw)
-    #set colorbar ticks and colorbar label
-    if levels==None:
-        pass
+    if show_colorbar == False:
+        cbar = None
     else:
-        ticks,labels = \
-            _generate_colorbar_ticks_label(data_transform=data_transform,
-                                           colorbarlabel=colorbarlabel,
-                                           trans_base_list=trans_base_list,
-                                           forcelabel=forcelabel,
-                                           plotlev=plotlev,
-                                           plotlab=plotlab)
-        cbar.set_ticks(ticks)
-        cbar.set_ticklabels(labels)
+        location = colorbardic.get('location','right')
+        size = colorbardic.get('size','3%')
+        pad = colorbardic.get('pad','2%')
+        cbar=m.colorbar(cs,location=location, size=size, pad=pad,**cbarkw)
+        #set colorbar ticks and colorbar label
+        if levels==None:
+            pass
+        else:
+            ticks,labels = \
+                _generate_colorbar_ticks_label(data_transform=data_transform,
+                                               colorbarlabel=colorbarlabel,
+                                               trans_base_list=trans_base_list,
+                                               forcelabel=forcelabel,
+                                               plotlev=plotlev,
+                                               plotlab=plotlab)
+            cbar.set_ticks(ticks)
+            cbar.set_ticklabels(labels)
     return cbar
 
 class mapcontourf(object):
@@ -478,11 +492,13 @@ class mapcontourf(object):
                  projection='cyl',mapbound='all',
                  gridstep=(30,30),shift=False,map_threshold=None,
                  cmap=None,colorbarlabel=None,forcelabel=None,
+                 show_colorbar=True,
                  smartlevel=False,
                  levels=None,data_transform=False,
                  colorbardic={},
                  cbarkw={},
-                 **kwargs):
+                 gmapkw={}
+                 ):
 
 
         (mgmap,pdata,plotlev,plotlab,extend,
@@ -497,6 +513,7 @@ class mapcontourf(object):
                                        cmap=cmap,
                                        smartlevel=smartlevel,
                                        data_transform=data_transform,
+                                       gmapkw=gmapkw,
                                        ax=ax)
 
         #make the contourf plot
@@ -512,7 +529,8 @@ class mapcontourf(object):
                              forcelabel=forcelabel,
                              plotlev=plotlev,
                              plotlab=plotlab,
-                             cbarkw=cbarkw)
+                             cbarkw=cbarkw,
+                             show_colorbar=show_colorbar)
         #return
         self.m = mgmap.m
         self.cs = cs
@@ -521,6 +539,33 @@ class mapcontourf(object):
         self.plotlab = plotlab
         self.ax = mgmap.m.ax
         self.trans_base_list = trans_base_list
+        self.gmap = mgmap
+
+        if levels == None:
+            pass
+        else:
+            cbar_ticks,cbar_labels = \
+                _generate_colorbar_ticks_label(data_transform=data_transform,
+                                               colorbarlabel=colorbarlabel,
+                                               trans_base_list=trans_base_list,
+                                               forcelabel=forcelabel,
+                                               plotlev=plotlev,
+                                               plotlab=plotlab)
+
+            self.cbar_ticks = cbar_ticks
+            self.cbar_labels = cbar_labels
+
+    def colorbar(self,cax=None,**kwargs):
+        """
+        set colorbar on specified cax.
+
+        kwargs applies for plt.colorbar
+        """
+        cbar = plt.colorbar(self.cs,cax=cax,**kwargs)
+        cbar.set_ticks(self.cbar_ticks)
+        cbar.set_ticklabels(self.cbar_labels)
+        return cbar
+
 
 
 class mapimshow(object):
@@ -550,6 +595,7 @@ class mapimshow(object):
                  levels=None,data_transform=False,
                  colorbardic={},
                  cbarkw={},
+                 gmapkw={},
                  *args,
                  **kwargs):
 
@@ -565,6 +611,7 @@ class mapimshow(object):
                                        cmap=cmap,
                                        smartlevel=smartlevel,
                                        data_transform=data_transform,
+                                       gmapkw=gmapkw,
                                        ax=ax)
 
         cs=mgmap.m.imshow(pdata,origin='upper',*args,**kwargs)
@@ -587,6 +634,7 @@ class mapimshow(object):
         self.plotlab = plotlab
         self.ax = mgmap.m.ax
         self.trans_base_list = trans_base_list
+        self.gmap = mgmap
 
 
 
@@ -1051,3 +1099,6 @@ def contourfmap(ax=None,lat=None,lon=None,indata=None,projection='cyl',mapbound=
         return m,cbar,plotlev,plotlab
     else:
         return m,cbar
+
+
+

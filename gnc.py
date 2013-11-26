@@ -19,7 +19,7 @@ import os
 import sys
 
 home_dir = os.path.expanduser('~')
-pylab_dir = home_dir+'/'+'python/python_lib'
+pylab_dir = home_dir+'/'+'python'
 basedata_dir = pylab_dir + '/basedata'
 
 def append_doc_of(fun):
@@ -73,7 +73,6 @@ def find_index_by_vertex(globHDlon, globHDlat, (vlon1,vlon2), (vlat1,vlat2)):
     ------
     1. To retrieve the data from derived indexes, one should use:
         np.s_[lat_index_min:lat_index_max+1, lon_index_min:lon_index_max+1]
-
     """
     lon_index = np.nonzero((globHDlon >= vlon1) & (globHDlon <= vlon2))[0]
     lon_index_min = np.min(lon_index)
@@ -293,7 +292,7 @@ def txt2nc_HalfDegree(filename,name_list=None,varname_list=None,name_keyword=Fal
     -----------
     name_list: the name_list allows a flexible way to write txt to netcdf files.
         1. when name_list is a string, write only from one txt file, varname_list should also be a string specifying the varialbe name that's in the new nc file.
-        2. when name_list is a string:
+        2. when name_list is a list of string:
             2.1 when name_keyword is True, the members in the name_list will be used as nameid together with common_prefix_in_name and name_surfix to construct the complete
                 file names, the nameid will be automacatilly used as variable names. In this case varname_list will be overwritten if it's not None
             2.2 when name_keyword is False, the members in name_list should indicate full path of txt files, and strings in varname_list will be used as the varialble names
@@ -557,7 +556,7 @@ class NcWrite(object):
         if np.ma.isMA(vardata):
             missing_value = vardata.fill_value
         else:
-            missing_value = 1.0e+20
+            missing_value = nc.default_fillvals[varinfo['dtype']]
 
         var = self.rootgrp.createVariable(varinfo['varname'],
                                           varinfo['dtype'],
@@ -576,7 +575,8 @@ class NcWrite(object):
         #copy the variable attributes from another netCDF4.Variable object.
         if isinstance(attr_copy_from, nc.Variable):
             for attr_name in attr_copy_from.ncattrs():
-                var.setncattr(attr_name, attr_copy_from.getncattr(attr_name))
+                if attr_name not in [u'_FillValue', u'missing_value']:
+                    var.setncattr(attr_name, attr_copy_from.getncattr(attr_name))
 
         #set variable attributes by hand
         for key,value in attr_kwargs.items():
@@ -634,7 +634,12 @@ class NcWrite(object):
 
     def _construct_data_by_dim(self,numdim):
         """
-        construct the global ndarray that we need and fill in with the data from each region.
+        construct the global ndarray that we need and fill in with
+            the data from each region.
+
+        Notes:
+        ------
+        1. The data is iniated as all being masked.
         """
         dimlen_dic = pb.Dic_Apply_Func(len,self.dimensions)
         if numdim == 4:
@@ -680,7 +685,7 @@ class NcWrite(object):
 
 
 
-    def _add_var_by_dim(self,varname,numdim,data):
+    def _add_var_by_dim(self,varname,numdim,data,pyfunc=None):
         """
         Used only by add_var_from_file_list
         """
@@ -691,6 +696,13 @@ class NcWrite(object):
             glob_data[subslice] = subdata.d1.__dict__[varname] #note here the mask of glob_data will be changed automatically.
             print "data fed from file --{0}--".format(subdata.filename)
 
+        if pyfunc != None:
+            if callable(pyfunc):
+                glob_data = pyfunc(glob_data)
+            else:
+                raise TypeError("pyfunc not callable")
+
+
         if numdim == 4:
             self.add_var_4dim_time_pft_lat_lon(varname, glob_data, attr_copy_from=subdata.d0.__dict__[varname])
         elif numdim == 3:
@@ -700,17 +712,26 @@ class NcWrite(object):
         else:
             raise ValueError("Strange that numdim is 1")
 
-    def add_var_from_file_list(self,input_file_list,varlist,Ncdata_latlon_dim_name=None):
+    def add_var_from_file_list(self,input_file_list,varlist,
+                               Ncdata_latlon_dim_name=None,
+                               pyfunc=None):
         """
         Mainly used for merging nc files spatially
 
         Parameters:
         -----------
         input_file_list: the NetCDF input file list for merging.
-        varlist: variable name list that will appear in merged nc file. Note each input file have have the specified variable and the dimension accros all 
-            input files must be the same.
-        Ncdata_latlon_dim_name: the selective varialbe that's used in Ncdata when open a nc file.
+        varlist: variable name list that will appear in merged nc file.
+            Note each input file have have the specified variable
+            and the number of dimension accros all input files
+            must be the same.
+        Ncdata_latlon_dim_name: the selective varialbe that's used
+            in Ncdata when open a nc file.
 
+        Notes:
+        ------
+        1. If there are intersections in the input file spatial coverage,
+            files come later will overwrite the proceeding ones.
         """
         data = [Ncdata(filename,latlon_dim_name=Ncdata_latlon_dim_name) for filename in input_file_list]
         subdata_first = data[0]
@@ -719,7 +740,7 @@ class NcWrite(object):
                 raise ValueError("The variable {0} in all input files does not have the same dimension!".format(varname))
             else:
                 numdim = len(subdata_first.d0.__dict__[varname].dimensions)
-                self._add_var_by_dim(varname,numdim,data)
+                self._add_var_by_dim(varname,numdim,data,pyfunc=pyfunc)
 
         glob_attr_dic = subdata_first.global_attributes
         #pdb.set_trace()
@@ -741,57 +762,6 @@ class NcWrite(object):
             for key,value in glob_attr_dic.items():
                 self.rootgrp.setncattr(key,value)
 
-def nc_spatial_concat_ncfiles(outfile,input_file_list,timestep=None,time_length=None,
-                   varlist=None,latvar=None,lonvar=None,
-                   latinfo=None,loninfo=None,pft=False,
-                   Ncdata_latlon_dim_name=None):
-    """
-    A shortcut for merging spatially a list of files. For detailed control
-        of dimensions and varialbes, use NcWrite first, followed by
-        add_var_from_file_list.
-
-    Parameters:
-    -----------
-    timestep: 'year' or 'month', default is 'year'
-    time_length: np.arange(1,time_length+1) will be the time variable value.
-    varlist: the variable list that's to be retained in merged file.
-        default inclules all variables except the dimension variable.
-    latvar,lonvar: the lat/lon for megered data. default is 0.5 degree
-        resolution with global coverage.
-    latinfo,loninfo: tuple containing ('lat/lon_dim_name','lat/lon_var_name',
-        'lat/lon_var_longname'); default for lat is ('lat','lat','latitude')
-        and for lon is ('lon','lon','longitude').
-    pft: if pft==True, then PFT dimensions from ORCHIDEE will be added.
-    Ncdata_latlon_dim_name: the specified lat/lon dimension names that are
-        used when calling Ncdata.
-
-    see also
-    --------
-    gnc.Ncdata
-
-    Test
-    ----
-    nc_subgrid_csv and nc_merge_files are tested against each other
-        in the gnc_test.py.
-    """
-    ncfile = NcWrite(outfile)
-    ncfile.add_diminfo_lon('lon','lon','longitude')
-    ncfile.add_diminfo_lat('lat','lat','latitude')
-    ncfile.add_2dim_lat_lon(np.arange(89.75,-90,-0.5),
-                            np.arange(-179.75,180,0.5))
-    if pft == True:
-        ncfile.add_dim_pft()
-    if timestep == None:
-        timestep = 'year'
-    ncfile.add_dim_time(np.arange(1,1+time_length),timestep=timestep)
-    subdata_first = Ncdata(input_file_list[0],
-                           latlon_dim_name=Ncdata_latlon_dim_name)
-    if varlist == None:
-        varlist = pb.StringListAnotB(subdata_first.list_var(),
-                                     subdata_first.dimvar_name_list)
-    ncfile.add_var_from_file_list(input_file_list,varlist,
-                         Ncdata_latlon_dim_name=Ncdata_latlon_dim_name)
-    ncfile.close()
 
 def _set_default_ncfile_for_write(ncfile,**kwargs):
     '''
@@ -823,6 +793,50 @@ def _set_default_ncfile_for_write(ncfile,**kwargs):
     ncfile.add_dim_time(np.arange(1,1+time_length),timestep=timestep)
     if kwargs.get('pft',False):
         ncfile.add_dim_pft()
+
+@append_doc_of(_set_default_ncfile_for_write)
+def nc_spatial_concat_ncfiles(outfile,input_file_list,
+                              varlist=None,
+                              pyfunc=None,
+                              Ncdata_latlon_dim_name=None,
+                              **kwargs):
+    """
+    A shortcut for merging spatially a list of files. For detailed control
+        of dimensions and varialbes, use NcWrite first, followed by
+        add_var_from_file_list.
+
+    Parameters:
+    -----------
+    varlist: the variable list that's to be retained in merged file.
+        default inclules all variables except the dimension variable.
+    Ncdata_latlon_dim_name: the specified lat/lon dimension names that are
+        used when calling Ncdata.
+    pyfunc: functions to be applied.
+
+    see also
+    --------
+    gnc.Ncdata
+
+    Test
+    ----
+    nc_subgrid_csv and nc_merge_files are tested against each other
+        in the gnc_test.py.
+    """
+    subdata_first = Ncdata(input_file_list[0],
+                           latlon_dim_name=Ncdata_latlon_dim_name)
+    if 'PFT' in subdata_first.dimensions:
+        kwargs['pft'] = True
+    kwargs['time_length'] = subdata_first.unlimited_dimlen
+    ncfile = NcWrite(outfile)
+    _set_default_ncfile_for_write(ncfile,**kwargs)
+    if varlist == None:
+        varlist = pb.StringListAnotB(subdata_first.list_var(),
+                                     subdata_first.dimvar_name_list)
+    ncfile.add_var_from_file_list(input_file_list,varlist,
+                         Ncdata_latlon_dim_name=Ncdata_latlon_dim_name,
+                         pyfunc=pyfunc)
+    ncfile.close()
+
 
 
 
@@ -1407,11 +1421,26 @@ class Ncdata(object):
         self.lonvar_name=lonvar_name
 
     def get_pftsum(self,varlist=None,veget_npindex=np.s_[:]):
+        """
+        Get PFT (VEGET_MAX) weighted average of variables.
+        Parameters:
+        -----------
+        varlist: limit varlist scope
+        veget_npindex: 
+            1. could be used to restrict for example the PFT
+            weighted average only among natural PFTs by setting
+            veget_npindex=np.s_[0:11]. It will be used to slice
+            VEGET_MAX variable.
+            2. could also be used to slice only for some subgrid
+            of the whole grid, eg., veget_npindex=np.s_[...,140:300,140:290].
+        """
+        if varlist == None:
+            varlist = self.d1.__dict__.keys()
         d0=self.d0
         d2=g.ncdata()
         d1=self.d1
         print "*******PFT VEGET_MAX weighted sum begin******"
-        for var in d1.__dict__.keys():
+        for var in varlist:
             if var!='VEGET_MAX':
                 #4-dim variable before squeeze
                 if d0.__dict__[var].ndim==4:
@@ -1465,7 +1494,12 @@ class Ncdata(object):
 
     def get_spa(self,pftop=True):
         """
-        Get the PFT weighed spatial mean and sum, only non-masked values will be considered.
+        Get the PFT weighed spatial mean and sum, only non-masked values
+            will be considered.
+
+        Notes:
+        ------
+        1. Only variables which are keys to Ncdata.pftsum will be treated.
         """
         if not hasattr(self,'pftsum'):
             if pftop==True:
@@ -1638,7 +1672,52 @@ class Ncdata(object):
 
         return latvar,lonvar,mapvar
 
-    def map(self,mapvarname,
+
+    def _set_map_title_unit_by_mapvarname(self,mapvarname,axt,
+                                          unit=None,
+                                          title=None):
+        mapvar_full=self.d0.__dict__[mapvarname]
+        def retrieve_external_default(external_var,attribute):
+            if external_var!=None:
+                outvar=external_var
+            elif hasattr(mapvar_full,attribute):
+                if external_var==False:
+                    outvar=None
+                else:
+                    outvar=mapvar_full.getncattr(attribute)
+            else:
+                outvar=None
+            return outvar
+        #retrieve title or unit
+        map_unit=retrieve_external_default(unit,'units')
+        map_title=retrieve_external_default(title,'long_name')
+        try:
+            agre_title_complement='[yearly '+agremode+']'
+        except:
+            agre_title_complement=None
+
+        #function handling ax title
+        def set_title_unit(ax,title=None,unit=None,agre_title_complement=None):
+            try:
+                title_unit=title+('\n'+unit)
+            except TypeError:
+                try:
+                    title_unit=title
+                    title_agre=agre_title_complement+' '+title
+                except TypeError:
+                    pass
+            finally:
+                try:
+                    title_full=agre_title_complement+' '+title_unit
+                except TypeError:
+                    title_full=title_unit
+            if title_full!=None:
+                ax.set_title(title_full)
+            else:
+                pass
+        set_title_unit(axt,map_title,map_unit,agre_title_complement)
+
+    def map(self,mapvarname=None,
             forcedata=None,mapdim=None,
             agremode=None,pyfunc=None,mask=None,
             unit=None,title=None,pftsum=False,mask_value=None,
@@ -1650,9 +1729,14 @@ class Ncdata(object):
             colorbardic={},
             maptype='con',
             cbarkw={},
+            gmapkw={},
             **kwargs):
         """
         This is an implementation of bamp.mapcontourf
+
+        Parameters:
+        -----------
+        grid: should be a tuple of (lat1,lon1,lat2,lon2)
         """
         mlat,mlon,mdata = self._retrieve_data_for_map(
                                mapvarname=mapvarname,
@@ -1679,11 +1763,14 @@ class Ncdata(object):
                        data_transform=data_transform,
                        ax=ax,colorbardic=colorbardic,
                        cbarkw=cbarkw,
+                       gmapkw=gmapkw,
                        **kwargs)
 
         self.mcon = mcon
         self.m = mcon.m
         self.cbar = mcon.cbar
+        self._set_map_title_unit_by_mapvarname(mapvarname,self.m.ax,
+                                               unit=unit,title=title)
 
     def imshowmap(self,varname,forcedata=None,pftsum=False,ax=None,projection='cyl',mapbound='all',gridstep=(30,30),shift=False,colorbar=True,
                   colorbarlabel=None,*args,**kwargs):
@@ -1738,6 +1825,9 @@ class Ncdata(object):
         -----------
         (lat1,lon1): lowerleft coordinate
         (lat2,lon2): upperright coordinate
+        index: if index is True, the input (lat1,lon1),(lat2,lon2) will
+            not be treated as lat/lon values but as the index to
+            retrieve lat/lon values.
         """
         if index:
             lat1,lat2 = self.lat[lat1],self.lat[lat2]
@@ -1829,6 +1919,8 @@ class Ncdata(object):
         Purpose: find the index specified by (vla1,vlat2),(vlon1,vlon2)
         Return: (lon_index_min, lon_index_max, lat_index_min, lat_index_max)
         Note: This is a direct application of gnc.find_index_by_vertex.
+        1. To retrieve the data from derived indexes, one should use:
+            np.s_[lat_index_min:lat_index_max+1, lon_index_min:lon_index_max+1]
         """
         return find_index_by_vertex(self.lonvar, self.latvar, (vlon1,vlon2), (vlat1,vlat2))
 
@@ -2086,7 +2178,8 @@ class Ncdata(object):
 
     def Add_Vars_to_Mdata(self,varlist,grid=None,
                           mask_by=None,npindex=np.s_[:],
-                          md=None,pftsum=False):
+                          md=None,pftsum=False,
+                          transform_func=None):
         '''
         Add several vars to Mdata for easy mapping, this is a simple
             warpper of Add_Vars_to_Dict_Grid.
@@ -2094,19 +2187,30 @@ class Ncdata(object):
         Parameters:
         -----------
         grid: should be a tuple of (lat1,lon1,lat2,lon2)
-        mask_by: in case of a boolean numpy array, the mask will be directly
-            apply on the retrieved array by using mathex.ndarray_mask_smart_apply;
-            incase of a tuple like (varname,{'lb':2000,'ub':5000}), the mask
-            will first be generated using mathex.ndarray_mask_by_threshold,
-            followed by mathex.ndarray_mask_smart_apply.
+        mask_by:
+            1. in case of a boolean numpy array, the mask will be directly
+               apply on the retrieved array by using
+               mathex.ndarray_mask_smart_apply;
+            2. in case of a tuple like (varname,{'lb':2000,'ub':5000}), the mask
+               will first be generated using mathex.ndarray_mask_by_threshold,
+               followed by mathex.ndarray_mask_smart_apply.
+            3. in case of a function, it could be like
+               lambda x:np.ma.masked_invalid(x)
+            4. it could a non-masked function, eg.
+               mask_by=lambda x:np.ma.mean(x,axis=0), used to perform
+               proper data transfrom.
         npindex: further index the data after using grid. Note the npindex
             is applied after applying the mask_by.
+        transform_func: data transform_func after applying npindex. That's
+            could be useful in case to select specific time range and
+            then make time sum or mean.
         '''
         if md==None:
             md=Pdata.Mdata()
 
         ydic = self.Add_Vars_to_Dict_Grid(varlist,grid=grid,mask_by=mask_by,
-                                     pftsum=pftsum,npindex=npindex)
+                                          pftsum=pftsum,npindex=npindex,
+                                          transform_func=transform_func)
         md.add_entry_array_bydic(ydic)
         (sublat,sublon) = self.Get_latlon_by_Grid(grid)
         md.add_attr_by_tag(lat=sublat,lon=sublon)
@@ -2161,32 +2265,96 @@ class Ncdata(object):
                                          lat=self.lat,lon=self.lon)
         return md
 
-    def break_by_region(self,varname,separation_array,
+
+    def _find_mask(self):
+        """
+        Find the land/seak mask if there is any.
+        """
+        geoshape = (len(self.lat),len(self.lon))
+        for varname in self.varlist:
+            vardata = self.d1.__dict__[varname]
+            if vardata.shape[-2:] == geoshape:
+                if np.ma.isMA(vardata):
+                    return vardata.mask
+                else:
+                    return None
+            else:
+                raise ValueError("""No variable found with corresponidng lat/lon
+                                  dimension.""")
+
+
+    def _generate_separray_by_dataframe(self,dataframe):
+        """
+        Generate an separation array for later usage in break_region.
+
+        Parameters:
+        -----------
+        1. the dataframe should have "lat1,lat2,lon1,lon2,region" as column
+            names.
+        """
+        for name in ['lat1','lat2','lon1','lon2','region']:
+            if name not in dataframe.columns:
+                raise ValueError("{0} not a column name of dataframe").format(name)
+        region_name_dic = {}
+        separation_array = np.ma.masked_all((len(self.lat),len(self.lon)),dtype=np.int)
+        for i,(index,row) in dataframe.iterrows():
+            region_name_dic[i] = row['region']
+            vlat1,vlon1,vlat2,vlon2 = row['lat1'],row['lon1'],row['lat2'],row['lon2']
+            (lon_index_min, lon_index_max, lat_index_min, lat_index_max) = \
+                self.find_index_by_vertex((vlat1,vlat2),(vlon1,vlon2))
+            separation_array[lat_index_min:lat_index_max+1, lon_index_min:lon_index_max+1] = i
+        return region_name_dic,separation_array
+
+    def break_by_region(self,varname,separation,
                         forcedata=None,
                         pyfunc=None,dimred_func=None,
-                        pftsum=False):
+                        pftsum=False,regdict=None):
         """
         Break the concerned variables into regional sum or avg or extracted array by specifying the separation_array.
 
         Parameters:
         -----------
-        separation_array: The array that's used to separate different regions. the np.unique(separation_array) will be used as the keys for the dictionary which will be
-            returned by the function.
+        separation:
+            1. In case of an array:
+                The array that's used to separate different regions.
+                the np.unique(separation_array) will be used as the keys for
+                the dictionary which will be returned by the function. If
+                separation_array is a masked array, the final masked value
+                in the np.unique result will be dropped.
+            2. In case of a dataframe:
+                The dataframe should have "lat1,lat2,lon1,lon2,region" as column
+                names, and the method _generate_separray_by_dataframe is used
+                to produce a separation_array to handle.
         forcedata: used to force input data.
-        pyfunc: function used to change the regional array data.
-        dimred_func: functions that used to reduce the dimensions of regional array data, as long as it could be applied on numpy ndarray. eg., np.sum will get the sum
-            of the regional array. If none, regional array will be returned. 
+        pyfunc:
+            in case of function, used to change the regional array data;
+            in case of a scalar, will be directly multiplied.
+        dimred_func: functions that used to reduce the dimensions of regional
+            array data, as long as it could be applied on numpy ndarray.
+            eg., np.sum will get the sum of the regional array. If None,
+            regional array will be returned.
         pftsum: if True, the varname data from the pftsum will be used.
 
         Notes:
         ------
-        1. varname could be any dimension as long as the last two dimensions are the same as separation_array.
+        1. varname could be any dimension as long as the last two dimensions
+            are the same as separation_array.
         2. pyfunc and dimred_func work for np.ma functions
+        3. dimred_func is not a general disign will be removed later.
+            A general use of pyfunc is rather preferred. For example,
+            to have a region sum with unit change, use:
+            pyfunc = lambda x: np.ma.sum(np.ma.sum(x,axis=-1),axis=-1)*30.
 
         Returns:
         --------
-        region_dic: A dictionary with the region ID as keys and the region arrays or mean or sum as key values.
+        region_dic:
+            A dictionary with the region ID/names as keys and the region
+            arrays or mean or sum as key values.
+
         """
+        print "dimred_func will be removed in the future!"
+
+        #treat varname and forcedata
         if pftsum == True:
             vardata = self.pftsum.__dict__[varname]
         else:
@@ -2194,33 +2362,58 @@ class Ncdata(object):
         if forcedata != None:
             vardata = forcedata
 
-        regdic={}
-        reg_id_list = np.unique(separation_array)
-        reg_id_list = reg_id_list.astype(int)
-        for reg_id in reg_id_list:
-            reg_valid = np.ma.masked_not_equal(separation_array,reg_id)
-            annual_reg = mathex.ndarray_apply_mask(vardata,mask=reg_valid.mask)
-            if np.any(np.isnan(annual_reg)) or np.any(np.isinf(annual_reg)):
-                print "Warning! nan or inf values have been masked for variable {0} reg_id {1}".format(varname,reg_id)
-                annual_reg = np.ma.masked_invalid(annual_reg)
-            if pyfunc!=None:
-                if isfunction(pyfunc):
-                    data=pyfunc(annual_reg)
-                else:
-                    data=annual_reg*pyfunc
-            else:
-                data = annual_reg
+        #treat separation object
+        if isinstance(separation,np.ndarray):
+            namedic = None
+            separation_array = separation
+        elif isinstance(separation,pa.DataFrame):
+            namedic,separation_array = \
+                self._generate_separray_by_dataframe(separation)
+        else:
+            raise TypeError("separation could only be np.ndarray or dataframe.")
 
-            if dimred_func == None:
-                regdic[reg_id] = data
-            elif callable(dimred_func):
-                if data.ndim >= 2:
-                    regdic[reg_id] = dimred_func(dimred_func(data,axis=-1),axis=-1)
+        regdic={}
+        unique_array = np.unique(separation_array)
+        if np.ma.isMA(unique_array):
+            unique_array = unique_array.compressed()
+        else:
+            pass
+        unique_array = unique_array.astype(int)
+        #we need to avoid the duplicates after moldering the type into int.
+        if len(np.unique(unique_array)) < len(unique_array):
+            raise ValueError("""
+            Input separation_array have duplicate values after being
+            moldered into int type.
+            """)
+        else:
+            if namedic == None:
+                namedic = dict(zip(unique_array,unique_array))
+
+            for reg_id in unique_array:
+                reg_valid = np.ma.masked_not_equal(separation_array,reg_id)
+                annual_reg = mathex.ndarray_apply_mask(vardata,mask=reg_valid.mask)
+                if np.any(np.isnan(annual_reg)) or np.any(np.isinf(annual_reg)):
+                    print "Warning! nan or inf values have been masked for variable {0} reg_id {1}".format(varname,reg_id)
+                    annual_reg = np.ma.masked_invalid(annual_reg)
+                if pyfunc!=None:
+                    if isfunction(pyfunc):
+                        data=pyfunc(annual_reg)
+                    else:
+                        data=annual_reg*pyfunc
                 else:
-                    raise ValueError("strange the dimension of data is less than 2!")
-            else:
-                raise TypeError("dimred_func must be callable")
-        return regdic
+                    data = annual_reg
+
+                if dimred_func == None:
+                    regdic[namedic[reg_id]] = data
+                elif callable(dimred_func):
+                    if data.ndim >= 2:
+                        regdic[namedic[reg_id]] = dimred_func(dimred_func(data,axis=-1),axis=-1)
+                    else:
+                        raise ValueError("strange the dimension of data is less than 2!")
+                else:
+                    raise TypeError("dimred_func must be callable")
+
+            return regdic
 
     def Plot_Vars(self,ax=None,varlist=None,npindex=np.s_[:],
                   unit=True,pftsum=False,spa=None,
@@ -2268,6 +2461,11 @@ class Ncdata(object):
         transform_func: data transform_func after applying npindex. That's
             could be useful in case to select specific time range and
             then make time sum or mean.
+
+        Notes:
+        ------
+        The applying sequence for different methods:
+        grid, mask_by,npindex,tansform_func
         """
         final_ncdata = self._get_final_ncdata_by_flag(pftsum=pftsum)
         final_dict = {}
@@ -2281,7 +2479,7 @@ class Ncdata(object):
             if mask_by == None:
                 return data
             elif isinstance(mask_by,np.ndarray):
-                return mathex.ndarray_mask_smart_apply(data,mask)
+                return mathex.ndarray_mask_smart_apply(data,mask_by)
             elif isinstance(mask_by,tuple):
                 varname = mask_by[0]
                 map_threshold = mask_by[1]
@@ -2311,7 +2509,11 @@ class Ncdata(object):
 
     def Add_Vars_to_Dict_by_RegSum(self,varlist,mode='sum',pftsum=False,
                                    mask_by=None,
-                                   area_weight=False,unit_func=None,grid=None):
+                                   transform_func=None,
+                                   grid=None,
+                                   npindex=np.s_[:],
+                                   area_weight=False,
+                                   unit_func=None):
         """
         Add vars to dictionary, but with some spatial operation.
         This is a further wrapper of gnc.Ncdata.Add_Vars_to_Dict_Grid
@@ -2338,11 +2540,24 @@ class Ncdata(object):
             4. it could a non-masked function, eg.
                mask_by=lambda x:np.ma.mean(x,axis=0), used to perform
                proper data transfrom.
+
+        Notes:
+        ------
+        Applying sequence:
+            first apply the sequential methods as in
+            gnc.Ncdata.Add_Vars_to_Dict_Grid, then by sequence of
+            mode, area_weight, unit_func
+
+        See also
+        --------
+        gnc.Ncdata.Add_Vars_to_Dict_Grid
         """
         dic = self.Add_Vars_to_Dict_Grid(varlist,grid=grid,pftsum=pftsum,
-                                         mask_by=mask_by)
+                                         npindex=npindex,
+                                         mask_by=mask_by,
+                                         transform_func=transform_func)
 
-        def get_area_array(area_weight,shape,unit_func):
+        def get_area_array(area_weight,shape):
             """
             """
             if area_weight == True:
@@ -2354,10 +2569,6 @@ class Ncdata(object):
                                        #shape is the latXlon of grid
             else:
                 raise ValueError("area_weight could only be boolean or str type.")
-
-            #unit_func is mainly for purpose of scaling the data due to unit reasons.
-            if unit_func != None:
-                area = unit_func(area)
 
             return area
 
@@ -2375,7 +2586,7 @@ class Ncdata(object):
 
         for key,data in dic.items():
             shape = (data.shape[-2],data.shape[-1])
-            area = get_area_array(area_weight,shape,unit_func)
+            area = get_area_array(area_weight,shape)
             data_area = data*area
             mode_func = get_func_by_mode(mode,area)
             data_new = mode_func(data_area)
@@ -2390,19 +2601,34 @@ class Ncdata(object):
     def Add_Vars_to_dataframe(self,varlist,mode='sum',pftsum=False,
                               mask_by=None,
                               area_weight=False,
+                              transform_func=None,
                               unit_func=None,
                               grid=None,
+                              npindex=np.s_[:],
                               index=None):
         """
         This is a simple wrapper of Add_Vars_to_Dict_by_RegSum
+
+        Parameters:
+        -----------
+        index: used as index in the dataframe.
+
+        See also
+        --------
+        gnc.Ncdata.Add_Vars_to_Dict_Grid
+        gnc.Ncdata.Add_Vars_to_Dict_by_RegSum
         """
         dic = self.Add_Vars_to_Dict_by_RegSum(varlist,mode=mode,
                                               pftsum=pftsum,
                                               mask_by=mask_by,
                                               area_weight=area_weight,
+                                              transform_func=transform_func,
                                               unit_func=unit_func,
+                                              npindex=npindex,
                                               grid=grid)
         return pa.DataFrame(dic,index=index)
+
+
 
 
 def nc_get_var_value_grid(ncfile,varname,(vlat1,vlat2),(vlon1,vlon2),

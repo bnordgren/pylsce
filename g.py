@@ -17,6 +17,8 @@ from matplotlib.backends.backend_pdf import PdfPages
 import pb
 import rpy2
 import copy
+from collections import Iterable
+from collections import OrderedDict
 #import rpy
 
 
@@ -68,10 +70,11 @@ def show_cmap(cmap=mat.cm.jet,levnum=10):
     """
     show the effect of a colormap
     """
+    fig,ax = Create_1Axes()
     dt = np.arange(1,levnum+1)
     dt = np.tile(dt[:,np.newaxis][::-1],(1,levnum))
-    plt.imshow(dt,cmap=cmap)
-    plt.colorbar()
+    cs = ax.imshow(dt,cmap=cmap)
+    plt.colorbar(cs)
 
 def show_cmap_all():
     # This example comes from the Cookbook on www.scipy.org.  According to the
@@ -201,6 +204,75 @@ def cm_concat_multiple_cm(concat_cmap_list):
             final_rgba_array_list.append(extract_rgba_array_255)
     final_rgb_array = np.concatenate(final_rgba_array_list,axis=0)
     return rgb2cm(final_rgb_array, cmname='tempcm')
+
+def _cm_contrast_2cmap(input_levels,**kwargs):
+    """
+    Make a contrast colormap by using the cmap1 and cmap2, the contrast
+        value is 0.
+
+    Parameters:
+    -----------
+    input_levels: could be levels in the bmap.mapcontourf method that serve
+        as input to method of pb.iteflat
+    kwargs:
+        cmap1: the first cmap
+        cmap2: the second cmap
+        adjust: number to adjust the proportion of the cmap1.
+    """
+    cmap1 = kwargs.get('cmap1',mat.cm.autumn)
+    cmap2 = kwargs.get('cmap2',mat.cm.summer_r)
+    adjust = kwargs.get('adjust',0)
+    levels = pb.iteflat(input_levels)
+    arr = np.array(levels)
+    num1 = len(arr[arr<0])
+    num2 = len(arr[arr>0])
+    concat_cmap_list = [(cmap1,0,1,num1+adjust),(cmap2,0,1,num2)]
+    return cm_concat_multiple_cm(concat_cmap_list)
+
+
+def cm_contrast_red2green(levels,**kwargs):
+    """
+    Make a contrast colormap by using input levels.
+
+    Parameters:
+    -----------
+    levels: could be levels in the bmap.mapcontourf method that serve
+        as input to method of pb.iteflat
+    kwargs:
+        cmap1: the first cmap
+        cmap2: the second cmap
+        adjust: number to adjust the proportion of the cmap1.
+
+    Example:
+    --------
+    >>> a = np.arange(-3,11)
+    >>> data = np.tile(a,(len(a),1))
+    >>> contourf(data,levels=a,cmap=g.cm_contrast_red2green(a,adjust=1))
+    >>> cbar = colorbar()
+    >>> cbar.set_ticks(a)
+
+
+    >>> contourf(data,levels=a,
+            cmap=g.cm_contrast_red2green(a,
+            cmap1=g.cm_extract(mat.cm.autumn,(1,3)),
+            cmap2=g.cm_extract(mat.cm.summer_r,(6,10)),adjust=0))
+    >>> cbar = colorbar()
+    >>> cbar.set_ticks(a)
+    """
+    cmap1 = kwargs.pop('cmap1',mat.cm.autumn)
+    cmap2 = kwargs.pop('cmap2',mat.cm.summer_r)
+    return _cm_contrast_2cmap(levels,cmap1=cmap1,cmap2=cmap2,**kwargs)
+
+
+def cm_contrast_red2blue(levels,**kwargs):
+    """
+    Constrast colormap for red2blue.
+    """
+    cm1 = cm_extract(mat.cm.gist_rainbow,(1,20),levnum=100)
+    cm2 = cm_extract(mat.cm.gist_rainbow,(60,80),levnum=100)
+    cmap1 = kwargs.pop('cmap1',cm1)
+    cmap2 = kwargs.pop('cmap2',cm2)
+    return _cm_contrast_2cmap(levels,cmap1=cmap1,cmap2=cmap2,**kwargs)
 
 
 redcmp=mat.colors.LinearSegmentedColormap.from_list('redcmp',['#FFCCCC','#330000'])
@@ -702,6 +774,53 @@ def Set_Axes_Position(ax,pos,frac):
     else:
         print "use 'w' for width adjustment and 'h' for height adjustment"
 
+
+def Axes_adjust_position(ax,origin='lower left',width=0,height=0):
+    """
+    Adjust axes in place by using fractions of width and height.
+
+    Parameters:
+    -----------
+    origin: ['lower left','lower right','upper left','upper right','center'],
+        used to indicate the fixed position.
+    width/height: the fractions in terms of axes to increase/decrease.
+    """
+    box = ax.get_position()
+    x0,y0,x1,y1 = [box.x0,box.y0,box.x1,box.y1]
+    print 'old',x0,y0,x1,y1
+    orwidth = x1-x0
+    orheight = y1-y0
+
+    new_width = (1+width)*orwidth
+    new_height = (1+height)*orheight
+
+
+    if origin == 'lower left':
+        x1 = x0 + new_width
+        y1 = y0 + new_height
+    elif origin == 'lower right':
+        x0 = x1 - new_width
+        y1 = y0 + new_height
+    elif origin == 'upper left':
+        x1 = x0 + new_width
+        y0 = y1 - new_height
+    elif origin == 'upper right':
+        x0 = x1 - new_width
+        y0 = y1 - new_height
+    elif origin == 'center':
+        nx0 = x1 - new_width
+        nx1 = x0 + new_width
+        ny0 = y1 - new_height
+        ny1 = y0 + new_height
+        (x0,y0,x1,y1) = (nx0,ny0,nx1,ny1)
+    else:
+        raise ValueError("unkonwn origin")
+
+    newwidth = x1-x0
+    newheight = y1-y0
+    ax.set_position([x0, y0, newwidth, newheight])
+
+
 def Axes_Set_Axis_Locater(axes,major=None,minor=None,axis='x'):
     """
         Set x/y axis major and minor locators.
@@ -713,18 +832,18 @@ def Axes_Set_Axis_Locater(axes,major=None,minor=None,axis='x'):
         axes.yaxis.set_major_locator(plt.MultipleLocator(major))
         axes.yaxis.set_minor_locator(plt.MultipleLocator(minor))
 
-def Set_FigText(fig,figtext):
-    fig.text(0.5,0.95,figtext,horizontalalignment='center',va='center')
+def Set_FigText(fig,figtext,**kwargs):
+    fig.text(0.5,0.95,figtext,horizontalalignment='center',va='center',**kwargs)
 
-def Set_Figxlabel(fig,figtext,pos=(0.5,0.04),ha='center'):
+def Set_Figxlabel(fig,figtext,pos=(0.5,0.04),ha='center',**kwargs):
     x=pos[0]
     y=pos[1]
-    return fig.text(x,y,figtext,ha=ha,rotation='horizontal')
+    return fig.text(x,y,figtext,ha=ha,rotation='horizontal',**kwargs)
     
-def Set_Figylabel(fig,figtext,pos=(0.08,0.5),va='center'):
+def Set_Figylabel(fig,figtext,pos=(0.08,0.5),va='center',**kwargs):
     x=pos[0]
     y=pos[1]
-    return fig.text(x,y,figtext,va=va,ha='center',rotation='vertical')
+    return fig.text(x,y,figtext,va=va,ha='center',rotation='vertical',**kwargs)
 
 def Fig_Save_Close(fig,figname):
     fig.savefig(figname)
@@ -837,7 +956,7 @@ def Calc_Newaxes_Fraction(posor, split_fraction, direction='vertical'):
     """
     x0, y0, width, height = posor
     newpos_list = []
-    if np.sum(np.array(split_fraction)) != 1:
+    if not np.allclose(np.sum(np.array(split_fraction)),1):
         raise ValueError("The split_fraction list sum is not 1")
     else:
         newfrac = np.cumsum(np.array(split_fraction))
@@ -867,6 +986,23 @@ def Calc_Newaxes_Fraction(posor, split_fraction, direction='vertical'):
                                 .format(direction))
         return np.array(newpos_list)
 
+def Axes_Replace_by_IceCore(ax,num,direction='vertical'):
+    """
+    Replace axes by a series of axes that looks like the ice core figures.
+    """
+    fig = ax.get_figure()
+    split_fraction = np.array([1./num] *(num*2-1))
+    split_fraction[1::2] = 0.
+    axs = Axes_Replace_Split_Axes(fig,ax,split_fraction)
+    map(lambda ax:ax.xaxis.set_visible(False),axs[1:])
+    axs[0].xaxis.set_ticks_position('bottom')
+    map(lambda ax:ax.spines['top'].set_visible(False),axs[1:-1])
+    map(lambda ax:ax.spines['bottom'].set_visible(False),axs[1:-1])
+    axs[0].spines['top'].set_visible(False)
+    axs[-1].spines['bottom'].set_visible(False)
+    map(lambda ax:ax.yaxis.set_ticks_position('left'),axs[0::2])
+    map(lambda ax:ax.yaxis.set_ticks_position('right'),axs[1::2])
+    return axs
 
 def Axes_Replace_Split_Axes(fig, axes_remove, split_fraction, direction='vertical'):
     """
@@ -910,10 +1046,10 @@ def Axes_Replace_Split_Axes(fig, axes_remove, split_fraction, direction='vertica
     posor = axes_remove.get_position()
     height_or = posor.y1 - posor.y0
     width_or = posor.x1 - posor.x0
-    print posor
-    print width_or, height_or
+    #print posor
+    #print width_or, height_or
     newaxes_pos = Calc_Newaxes_Fraction([posor.x0, posor.y0, width_or, height_or], split_fraction, direction=direction)
-    print newaxes_pos
+    #print newaxes_pos
     fig.delaxes(axes_remove)
     for x0new,y0new,widthnew,heightnew in newaxes_pos:
         newaxes_list.append(fig.add_axes([x0new, y0new, widthnew, heightnew]))
@@ -1517,9 +1653,17 @@ def legpro_lines(colorlist,labellist,ls='-',**kwargs):
     point_list=[mat.lines.Line2D([],[],color=c,ls=ls,**kwargs) for c in colorlist]
     return (point_list,labellist)
 
-def Set_Cbar_Label_Parallel(cbar,label_list,leftpos=1.2,**kwargs):
+def colorbar_set_label_parallel(cbar,label_list,leftpos=1.2,**kwargs):
     """
-    This is to set colorbar label besie the colorbar. see the example at:/homel/ychao/python/script/set_label_parallel_colorbar.py
+    This is to set colorbar label besie the colorbar.
+
+    Parameters:
+    -----------
+    cbar: the colorbar used to set.
+
+    Example:
+    --------
+    /homel/ychao/python/script/set_label_parallel_colorbar.py
     """
     cbar.set_ticklabels([])
     cbar.ax.tick_params(right='off',left='off')
@@ -1529,6 +1673,7 @@ def Set_Cbar_Label_Parallel(cbar,label_list,leftpos=1.2,**kwargs):
     else:
         for label,ypos in zip(label_list,yloc):
             cbar.ax.text(leftpos,ypos,label,ha='left',va='center',**kwargs)
+
 
 def setp(*artist,**kwargs):
     """
@@ -1582,6 +1727,10 @@ class ProxyLegend(object):
         else:
             self.tags = self.data.keys()
 
+    def __repr__(self):
+        return '\n'.join([repr(self.__class__),
+                          "tags:",','.join(self.tags)])
+
     @classmethod
     def merge_pleg(cls,*pleglist):
         '''
@@ -1596,7 +1745,10 @@ class ProxyLegend(object):
             data.update(pleg.data)
             tags.extend(pleg.tags)
         plegnew = ProxyLegend(data)
-        plegnew.set_tag_order(tags)
+        if len(set(tags)) < len(tags):
+            raise ValueError('duplicate tags in the new taglist')
+        else:
+            plegnew.set_tag_order(tags)
         return plegnew
 
     def set_tag_order(self,tagseq=None):
@@ -1653,6 +1805,23 @@ class ProxyLegend(object):
         proleg_new = ProxyLegend(self.data)
         return proleg_new
 
+    def set_new_tags(self, old_new_tag_tuple_list):
+        """
+        Change the old tag to new tag according to old_new_tag_tuple_list
+
+        Parameters:
+        -----------
+        old_new_tag_tuple_list: [(oldtag1,newtag1),(oldtag2,newtag2)]
+
+        Notes:
+        ------
+        1. In-place operation.
+        """
+        for (oldtag,newtag) in old_new_tag_tuple_list:
+            self.data[newtag] = self.data[oldtag]
+            del self.data[oldtag]
+            self.tags[self.tags.index(oldtag)] = newtag
+
     @staticmethod
     def _check_void_handle_label(label):
         if label == '':
@@ -1678,9 +1847,19 @@ class ProxyLegend(object):
         return handle_list,label_list
 
 
-    def create_legend(self,ax,tagseq=None,**kwargs):
+    def create_legend(self,ax=None,tagseq=None,**kwargs):
+        """
+        Create legend.
+
+        Parameters:
+        -----------
+        kwargs: used in plt.legend function.
+        """
         handle_list,label_list=self._get_handle_label(tagseq)
-        return ax.legend(handle_list,label_list,**kwargs)
+        if ax != None:
+            return ax.legend(handle_list,label_list,**kwargs)
+        else:
+            return plt.legend(handle_list,label_list,**kwargs)
 
     def add_lines_by_color(self,colorlist,labellist,**kwargs):
         for lab,c in zip(labellist,colorlist):
@@ -1695,6 +1874,13 @@ class ProxyLegend(object):
             self.add_line_by_tag(lab,color=c,marker='o',ls='none',**kwargs)
 
     def create_legend_top(self,ax,tagseq=None,expand=True,**kwargs):
+        """
+        shortcut for creating legend above axes.
+
+        Parameters:
+        -----------
+        kwargs: used in plt.legend function.
+        """
         if expand==True:
             mode='expand'
         else:
@@ -1759,4 +1945,238 @@ class ProxyLegend(object):
         #add handles
         for tag,tag_attr_subdic in plot_attr_tag_dic.items():
             self.add_line_by_tag(tag,**tag_attr_subdic)
+
+class ProxyLegend2D(object):
+    """
+    Initialize by a OrderDict of ProxyLegend objects.
+    """
+    def __init__(self,plegdic):
+        if not isinstance(plegdic,OrderedDict):
+            raise TypeError("must be OrderedDict of ProxyLegend objects")
+        else:
+            if not isinstance(plegdic.values()[0],ProxyLegend):
+                raise TypeError('dict values must be ProxyLegend objects')
+            else:
+                self.child_pleg = plegdic
+                self.parent_tags = plegdic.keys()
+                self.child_tags = plegdic.values()[0].tags
+
+
+    def __repr__(self):
+        return '\n'.join([repr(self.__class__),
+                          "parent_tags:",','.join(self.parent_tags),
+                          "child_tags:",','.join(self.child_tags)])
+
+
+    def collapse(self,mode='parent'):
+        """
+        """
+        if mode == 'parent':
+            newtaglist = []
+            newhanles = []
+            for ctag in self.child_tags:
+                for ptag in self.parent_tags:
+                    newtaglist.append(ctag+'('+ptag+')')
+                    newhanles.append(self.child_pleg[ptag].data[ctag])
+            pleg = ProxyLegend(OrderedDict(zip(newtaglist,newhanles)))
+            pleg.set_tag_order(newtaglist)
+            return pleg
+        elif mode == 'child':
+            newtaglist = []
+            newhanles = []
+            for ptag in self.parent_tags:
+                for ctag in self.child_tags:
+                    newtaglist.append(ptag+'('+ctag+')')
+                    newhanles.append(self.child_pleg[ptag].data[ctag])
+            pleg = ProxyLegend(OrderedDict(zip(newtaglist,newhanles)))
+            pleg.set_tag_order(newtaglist)
+            return pleg
+        else:
+            raise ValueError("unknown mode")
+
+
+
+def Axes_get_bounds(axs):
+    """
+    Get bounds of group of axes.
+
+    Parameters:
+    -----------
+    axs: ndarray of axes, list of axes, axes.
+
+    Returns:
+    --------
+    [fig,(x0,x1,y0,y1)]: the figure and the four points of the
+        group of Axes.
+    """
+    if isinstance(axs,np.ndarray):
+        axlist = axs.flatten()
+    elif isinstance(axs,list):
+        axlist = pb.iteflat(axs)
+    elif isinstance(axs,mat.axes.Axes):
+        axlist = [axs]
+    else:
+        raise TypeError("wrong axs input")
+
+    pl = []
+    for ax in axlist:
+        box = ax.get_position()
+        pl.append((box.x0,box.x1,box.y0,box.y1))
+    pldata = np.array(pl)
+    (x0,x1,y0,y1) = pldata[:,0].min(),pldata[:,1].max(),pldata[:,2].min(),\
+                    pldata[:,3].max()
+
+    fig = axlist[0].get_figure()
+    return [fig,(x0,x1,y0,y1)]
+
+def _get_axesrec_by_pos_offset(rec,pos,offset,width=None,height=None,
+                               middle=True):
+    """
+    Get the new rect by the old rec and pos,offset,width,height.
+
+    Parameters:
+    -----------
+    rec: (x0,x1,y0,y1) in units of figure fraction.
+
+    Returns:
+    --------
+    (nx0,ny0,width,height), the rec used in mat.figure.Figure.add_axes()
+        function.
+
+    Notes:
+    ------
+    A tentative function used in Axes_add_axes. refer to g.Axes_add_axes
+        for more information on the parameters.
+    """
+    x0,x1,y0,y1 = rec
+
+    if pos in ['left','right']:
+        if height == None: height = y1-y0
+        else: pass
+
+        if width == None:
+            raise ValueError('width must be supplied when pos is left/right')
+        else:
+            pass
+    elif pos in ['above','below']:
+        if height == None:
+            raise ValueError('height must be supplied when pos is above/below')
+        else:
+            pass
+
+        if width == None: width = x1-x0
+        else: pass
+    else:
+        raise ValueError('pos error')
+
+    def get_origin(rec,pos,offset):
+        (x0,x1,y0,y1) = rec
+        if pos == 'left':
+            x0 = x0 - offset
+        elif pos == 'right':
+            x0 = x1 + offset
+        elif pos == 'above':
+            y0 = y1 + offset
+        elif pos == 'below':
+            y0 = y0 - offset
+        else:
+            raise ValueError('pos error')
+
+        return x0,y0
+
+    nx0,ny0 = get_origin(rec,pos,offset)
+
+
+    #handle the case to put axes right in the middle
+    span_width = x1-x0
+    span_height = y1-y0
+
+    if middle == True:
+        if pos in ['left','right']:
+            ny0 = ny0+(span_height-height)/2.
+        elif pos in ['above','below']:
+            nx0 = nx0+(span_width-width)/2.
+        else:
+            raise ValueError('pos error')
+    else:
+        pass
+
+    return (nx0,ny0,width,height)
+
+
+
+
+def Axes_add_axes(relative=None,pos='right',offset=None,
+                  width=None,height=None,middle=True,**kwargs):
+    """
+    Add an axes relative to some other (group of) axes.
+
+    Parameters:
+    -----------
+    relative: currently could only be a list of ndarray of axes.
+    pos: the relative position of new axes to the relative, could be
+        'left','right','above','below'
+    offset: offset in unit if fraction of figure of the new added axes
+        in the direction of `pos` to the relative.
+    width,height: the width and height of the new axes. In case of pos
+        ='right/left', height will be calculated as the same of
+        the relative unless it's being forced. In case of the pos=
+        'above/below', width will be calculated as the same of
+        the relative unless it's being forced.
+    middle: boolean value. True to put the axes right in the middle.
+
+    kwargs: kwargs used in mat.figure.Figure.add_axes
+
+    Returns:
+    --------
+    A new axes created.
+    """
+
+    if not pos in ['left','right','above','below']:
+        raise ValueError("pos could only be left/right/above/below")
+
+
+
+    [fig,rec] = Axes_get_bounds(relative)
+    newrec = _get_axesrec_by_pos_offset(rec,pos,offset,
+                                        width=width,
+                                        height=height,
+                                        middle=middle)
+
+    return fig.add_axes(newrec,**kwargs)
+
+
+def Axes_set_visible(ax,visible=False):
+    """
+    Set a Axes "invisible" by setting frame and x/y axis ticks as None
+    """
+    def set_vis(ax,visible):
+        if not visible:
+            ax.set_frame_on(False)
+            ax.xaxis.set_visible(False)
+            ax.yaxis.set_visible(False)
+        else:
+            ax.set_frame_on(True)
+            ax.xaxis.set_visible(True)
+            ax.yaxis.set_visible(True)
+    if isinstance(ax,mat.axes.Axes):
+        set_vis(ax,visible)
+    elif isinstance(ax,(list,np.ndarray)):
+        map(lambda ax:set_vis(ax,visible),ax)
+    else:
+        raise TypeError("wrong ax type")
+
+
+def imshow(data,lognorm=False,ax=None,vmin=None,vmax=None):
+    if ax == None: fig,ax = Create_1Axes()
+    if vmin == None: vmin = np.ma.min(data)
+    if vmax == None: vmax = np.ma.max(data)
+    if lognorm == False:
+        norm = None
+    else:
+        norm = mat.colors.LogNorm(vmin=vmin,vmax=vmax)
+    cs = ax.imshow(data,norm=norm)
+    plt.colorbar(cs)
+
+
 
