@@ -115,10 +115,11 @@ class OrchideeAggregation(NetCDFCopier) :
         inlon = infile.variables['lon']
         lonsz = inlon[1] - inlon[0]
 
+        # indices in the file are 1-based (origin is at (1,1))
         origin_local = infile.DOMAIN_position_first
 
-        origin_lon = inlon[0] - lonsz*origin_local[0]
-        origin_lat = inlat[0] - latsz*origin_local[1]
+        origin_lon = inlon[0] - lonsz*(origin_local[0]-1)
+        origin_lat = inlat[0] - latsz*(origin_local[1]-1)
 
         latvar[:] = np.arange(start=origin_lat, 
                         stop=(origin_lat+domain[1]*latsz), 
