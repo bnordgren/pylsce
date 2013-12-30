@@ -4,6 +4,7 @@ Restart files contain different variables with different dimension names.
 '''
 
 import netCDF4 as nc
+import numpy as np
 import numpy.ma as ma
 from aggregator import NetCDFCopier
 
@@ -29,6 +30,29 @@ def sumByPFT(data):
     for pft in range(13) : 
         totals.append(data[:,pft].sum())
     return totals
+
+def fine_fuel(rs_fname) :
+    """Opens a named restart file, sums the fine fuel variables over all 
+    PFTs. This results in a map of fuel loading."""
+    d = nc.Dataset(rs_fname)
+    met = d.variables['fuel_1hr_met']
+    struct = d.variables['fuel_1hr_str']
+    met_raw = ma.masked_values(met[:], met.missing_value)
+    met_map = np.sum(met_raw, axis=(0,1)) 
+    struct_raw = ma.masked_values(struct[:], struct.missing_value)
+    struct_map = np.sum(struct_raw, axis=(0,1))
+    d.close()
+    return met_map + struct_map
+
+def fine_fuel_series(years) : 
+    fuel_series = np.zeros( (len(years),) )
+    i=0
+    for year in years : 
+        name = "stomate_restart_%04d.nc" % year
+        fuel_map = fine_fuel(name)
+        fuel_series[i] = np.sum(fuel_map)
+        i=i+1
+    return fuel_series 
 
 class RestartFileFixer (NetCDFCopier) : 
     """Tools to "fix" a restart file so that it can be recognized as a 
