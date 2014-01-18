@@ -65,6 +65,39 @@ class NetCDFCopier (object) :
 
 
 
+class NetCDFTemplate ( NetCDFCopier ) :
+    """A class to open a new NetCDF file and copy dimensions as needed
+    from a template NetCDF file."""
+
+    def __init__(self, templatefile, newfile) : 
+        self._ncfile = nc.Dataset(newfile, 'w')
+        self._templatefilename = templatefile
+        self._filename = newfile
+
+    def _openExemplar(self) : 
+        return nc.Dataset(self._templatefilename)
+
+    def add_variable(self, data, name, dims, dtype=None) : 
+        """Creates a variable in the netcdf file with the given
+        name, dimensions and data. If the dimensions do not yet exist 
+        in the output file, they are copied from the template. If dtype
+        is not specified, it is set to be the same as the data type of 
+        the data.
+        If successful, the new variable is returned."""
+        # copy any missing dimensions from the template file
+        for dim in dims : 
+            self.copyDimension(dim)
+
+        tgt = self._ncfile
+        if dtype == None : 
+            dtype = data.dtype
+        newvar = tgt.createVariable(name, dtype, dims)
+        newvar[:] = data[:]
+
+        return newvar
+
+        
+
 class OrchideeAggregation(NetCDFCopier) : 
     """This class remembers some key characteristics about a source 
     fileset so that aggregate variables may be written to an output 
