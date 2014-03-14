@@ -79,13 +79,54 @@ class ExtendUnlimited (object) :
         return (ds, e_idx - self._starts[ds])
 
     def calcDsSlices(self, e_slice) : 
-        startpos = self.getDsIndex(e_slice.start)
-        stoppos  = self.getDsIndex(e_slice.stop)
+        start = e_slice.start
+        stop  = e_slice.stop
+        if start == None : 
+            start = 0 
+        if stop == None : 
+            stop  = self._starts[-1] + self._lengths[-1]
+
+        startpos = self.getDsIndex(start)
+        stoppos  = self.getDsIndex(stop)
 
         ds_slice = slice(startpos[0], stoppos[0]+1)
         starting_slice = slice(startpos[1],None)
         ending_slice   = slice(stoppos[1])
         return (ds_slice, starting_slice, ending_slice)
+
+    def getExtendedLength(self) : 
+        return self._lengths[-1] + self._starts[-1]
+
+    def getShape(self, varname, key, ext_dim) : 
+        shape = []
+        orig_shape = self._datasets[0].variables[varname].shape
+        ext_len = self.getExtendedLength()
+        for i in range(len(key)) : 
+            if type(key[i]) == int : 
+                shape.append(1)
+            else : 
+                stop = key[i].stop
+                start = key[i].start
+                if stop == None : 
+                    if (i == ext_dim) : 
+                        stop = ext_len
+                    else:
+                        stop = orig_shape[i]
+                if start == None : 
+                    start = 0
+                shape.append(stop-start)
+
+        return shape 
+
+    def getDataKey(self, key, shape) : 
+        data_key = []
+        for i in range(len(key)) : 
+            if type(key[i]) == int : 
+                data_key.append(0)
+            else : 
+                data_key.append(shape[i])
+        return data_key
+
 
     def getData(self, varname, key, ext_dim) : 
         ext_slice = key[ext_dim]
@@ -101,25 +142,13 @@ class ExtendUnlimited (object) :
                 newkey[ext_dim] = slice(ds_slices[1].start,ds_slices[2].stop)
                 data = self._datasets[ds_slices[0].start].variables[varname][newkey]
             else:
-                shape = []
-                orig_shape = self._datasets[0].variables[varname].shape
-                for i in range(len(key)) : 
-                    if type(key[i]) == int : 
-                        shape.append(1)
-                    else : 
-                        stop = key[i].stop
-                        start = key[i].start
-                        if stop == None : 
-                            stop = orig_shape[i]
-                        if start == None : 
-                            start = 0
-                        shape.append(stop-start)
-                data = np.zeros(shape)
+                shape = self.getShape(varname, key, ext_dim)
+                data = ma.zeros(shape)
                     
                 # read from the first ds
                 ds_key = list(key)
                 ds_key[ext_dim] = ds_slices[1]
-                data_key = list(key)
+                data_key = self.getDataKey(key,shape)
                 ext_last = self._lengths[ds_slices[0].start]-ds_slices[1].start
                 data_key[ext_dim] = slice(0, ext_last)
                 data[data_key] = self._datasets[ds_slices[0].start].variables[varname][ds_key]
@@ -200,13 +229,14 @@ def grid_linefit(grid, timevals=None) :
     slope_map = ma.zeros(outshape)
 
     for i in range(outshape[0]) : 
-        if not grid[0,:].mask[i] : 
+        if ((type(grid) == 'numpy.ma.core.MaskedArray') 
+            and grid[0,:].mask[i]) : 
+            rsq_map[i] = ma.masked
+            slope_map[i] = ma.masked 
+        else : 
             m, rsq = linefit(grid,i,X)
             rsq_map[i] = rsq
             slope_map[i] = m 
-        else : 
-            rsq_map[i] = ma.masked
-            slope_map[i] = ma.masked 
 
     return (slope_map, rsq_map)
 
