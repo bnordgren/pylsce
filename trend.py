@@ -171,10 +171,10 @@ class ExtendedVar(object) :
         return self._unlim.getData(self._varname, key, self._unlim_dim)
 
 
-def linefit(grid,i,j,X) : 
+def linefit(vector,i,X) : 
     # construct a linefit for the specified pixel across all the years in the dataset. 
     # return the slope and the r^2.
-    results = sm.OLS(grid[:,i,j], X).fit()
+    results = sm.OLS(vector[:,i], X).fit()
     intercept, slope = results.params
     rsq = results.rsquared
     if   -(np.isfinite(rsq)) : 
@@ -183,7 +183,7 @@ def linefit(grid,i,j,X) :
     return (slope, rsq)
 
 def grid_linefit(grid, timevals=None) :
-    """A spatiotemporal grid is provided. A line fit is performed 
+    """A compressed spatiotemporal grid is provided. A line fit is performed 
     along the time axis for each spatial cell. Two grids are returned,
     each of which is 2d, with the same spatial shape as the input.
     The pixels of one grid contains the slope, the other contains the 
@@ -194,20 +194,19 @@ def grid_linefit(grid, timevals=None) :
         timevals = ma.arange(grid.shape[0])
     X = sm.add_constant(timevals, prepend=True)
 
-    outshape = (grid.shape[1], grid.shape[2])
+    outshape = (grid.shape[1],)
 
     rsq_map = ma.zeros(outshape)
     slope_map = ma.zeros(outshape)
 
     for i in range(outshape[0]) : 
-        for j in range(outshape[1])  :
-            if not grid[0,:,:].mask[i,j] : 
-                m, rsq = linefit(grid,i,j,X)
-                rsq_map[i,j] = rsq
-                slope_map[i,j] = m 
-            else : 
-                rsq_map[i,j] = ma.masked
-                slope_map[i,j] = ma.masked 
+        if not grid[0,:].mask[i] : 
+            m, rsq = linefit(grid,i,X)
+            rsq_map[i] = rsq
+            slope_map[i] = m 
+        else : 
+            rsq_map[i] = ma.masked
+            slope_map[i] = ma.masked 
 
     return (slope_map, rsq_map)
 
