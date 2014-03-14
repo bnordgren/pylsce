@@ -91,7 +91,7 @@ class NetCDFTemplate ( NetCDFCopier ) :
         tgt = self._ncfile
         if dtype == None : 
             dtype = data.dtype
-        newvar = tgt.createVariable(name, dtype, dims)
+        newvar = tgt.createVariable(name, dtype, dims, fill_value=data.fill_value)
         newvar[:] = data[:]
 
         return newvar
