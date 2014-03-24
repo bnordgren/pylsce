@@ -1,4 +1,5 @@
 import statsmodels.api as sm
+import numpy.fft as f
 import numpy.ma as ma
 import numpy as np
 import netCDF4 as nc
@@ -156,6 +157,7 @@ class ExtendUnlimited (object) :
                 # read from all the middle ds es
                 ds_key[ext_dim] = slice(None)
                 for i in range(ds_slices[0].start+1, ds_slices[0].stop-1) :
+                    print i
                     tmp = ext_last + self._lengths[i]
                     data_key[ext_dim] = slice(ext_last, tmp)
                     data[data_key] = self._datasets[i].variables[varname][ds_key]
@@ -199,6 +201,14 @@ class ExtendedVar(object) :
     def __getitem__(self, key) : 
         return self._unlim.getData(self._varname, key, self._unlim_dim)
 
+def fft_grid(vector, outvar, d=0.25) : 
+    """performs an fft individually for each pixel, along the time dimension."""
+    for i in range(vector.shape[1]) : 
+        if i%100 == 0 : 
+            print i
+        outvar[:,i] = f.fft(vector[:,i])
+    
+
 
 def linefit(vector,i,X) : 
     # construct a linefit for the specified pixel across all the years in the dataset. 
@@ -229,6 +239,7 @@ def grid_linefit(grid, timevals=None) :
     slope_map = ma.zeros(outshape)
 
     for i in range(outshape[0]) : 
+        print "%d of %d (%f)" % (i, outshape[0], (i*100.0)/outshape[0])
         if ((type(grid) == 'numpy.ma.core.MaskedArray') 
             and grid[0,:].mask[i]) : 
             rsq_map[i] = ma.masked

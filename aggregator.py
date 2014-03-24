@@ -77,21 +77,32 @@ class NetCDFTemplate ( NetCDFCopier ) :
     def _openExemplar(self) : 
         return nc.Dataset(self._templatefilename)
 
+    def create_variable(self, name, dims, dtype, fill=None, chunk=None) : 
+        """Creates a variable in the netcdf file with the given name,
+        dimensions and data type."""
+
+        # copy any missing dimensions from the template file
+        for dim in dims : 
+            self.copyDimension(dim)
+
+        if dtype == None : 
+            dtype = data.dtype
+
+        tgt = self._ncfile
+        return tgt.createVariable(name, dtype, dims, fill_value=fill, chunksizes=chunk)
+
+
     def add_variable(self, data, name, dims, dtype=None) : 
         """Creates a variable in the netcdf file with the given
         name, dimensions and data. If the dimensions do not yet exist 
         in the output file, they are copied from the template. If dtype
         is not specified, it is set to be the same as the data type of 
-        the data.
+        the data. This method copies the data into the netCDF file 
+        after creating the variable.
         If successful, the new variable is returned."""
-        # copy any missing dimensions from the template file
-        for dim in dims : 
-            self.copyDimension(dim)
 
-        tgt = self._ncfile
-        if dtype == None : 
-            dtype = data.dtype
-        newvar = tgt.createVariable(name, dtype, dims, fill_value=data.fill_value)
+        fill_value = getattr(data, 'fill_value', None)
+        newvar = self.create_variable(name, dims, dtype, fill_value)
         newvar[:] = data[:]
 
         return newvar
