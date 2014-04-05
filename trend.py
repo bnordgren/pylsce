@@ -47,7 +47,7 @@ class CompressedAxes (object) :
         for i in range(len(self._dimfactors)) : 
             indices[i] = c_idx / self._dimfactors[i]
             c_idx = c_idx - (indices[i] * self._dimfactors[i])
-        return indices
+        return tuple(indices)
             
         
 class ExtendUnlimited (object) : 
@@ -210,10 +210,10 @@ def fft_grid(vector, outvar, d=0.25) :
     
 
 
-def linefit(vector,i,X) : 
+def linefit(vector,i,X,timeslice=slice(None,None,None)) : 
     # construct a linefit for the specified pixel across all the years in the dataset. 
     # return the slope and the r^2.
-    results = sm.OLS(vector[:,i], X).fit()
+    results = sm.OLS(vector[timeslice,i], X).fit()
     intercept, slope = results.params
     rsq = results.rsquared
     if   -(np.isfinite(rsq)) : 
@@ -221,7 +221,7 @@ def linefit(vector,i,X) :
         slope = ma.masked
     return (slope, rsq)
 
-def grid_linefit(grid, timevals=None) :
+def grid_linefit(grid, timevals=None, timeslice=slice(None,None,None)) :
     """A compressed spatiotemporal grid is provided. A line fit is performed 
     along the time axis for each spatial cell. Two grids are returned,
     each of which is 2d, with the same spatial shape as the input.
@@ -239,13 +239,14 @@ def grid_linefit(grid, timevals=None) :
     slope_map = ma.zeros(outshape)
 
     for i in range(outshape[0]) : 
-        print "%d of %d (%f)" % (i, outshape[0], (i*100.0)/outshape[0])
+        if (i%1000) == 0 : 
+            print "%d of %d (%f)" % (i, outshape[0], (i*100.0)/outshape[0])
         if ((type(grid) == 'numpy.ma.core.MaskedArray') 
             and grid[0,:].mask[i]) : 
             rsq_map[i] = ma.masked
             slope_map[i] = ma.masked 
         else : 
-            m, rsq = linefit(grid,i,X)
+            m, rsq = linefit(grid,i,X,timeslice)
             rsq_map[i] = rsq
             slope_map[i] = m 
 

@@ -85,9 +85,6 @@ class NetCDFTemplate ( NetCDFCopier ) :
         for dim in dims : 
             self.copyDimension(dim)
 
-        if dtype == None : 
-            dtype = data.dtype
-
         tgt = self._ncfile
         return tgt.createVariable(name, dtype, dims, fill_value=fill, chunksizes=chunk)
 
