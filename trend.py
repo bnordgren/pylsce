@@ -48,7 +48,16 @@ class CompressedAxes (object) :
             indices[i] = c_idx / self._dimfactors[i]
             c_idx = c_idx - (indices[i] * self._dimfactors[i])
         return tuple(indices)
-            
+
+    def uncompress(self, vector) : 
+        """Given a compressed vector, produce an uncompressed 
+        2d representation."""
+        index_var = self._dataset.variables[self._c_dim]
+        retval = ma.masked_all( self._dimshape, dtype=vector.dtype ) 
+        for i in range(len(vector)) : 
+            retval[ self.getIndices(index_var[i]) ]  = vector[i]
+        return retval
+
         
 class ExtendUnlimited (object) : 
     """Opens a series of netcdf files, concatenating variables along
