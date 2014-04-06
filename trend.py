@@ -210,12 +210,199 @@ class ExtendedVar(object) :
     def __getitem__(self, key) : 
         return self._unlim.getData(self._varname, key, self._unlim_dim)
 
+
+class ModelEquation (object) : 
+    """Abstract superclass to orchestrate some common operations"""
+    pass
+
+
+class FourierSeries(object) : 
+    """Class represents a fourier series having a specified fundamental
+    period and a given number of harmonics. Note, fourier series have 
+    plus and minus terms for each harmonic.  This implementation does not 
+    include the bias term, so you need to explicitly include it before fitting
+    the function to a data series. Hence, one harmonic (just the fundamental 
+    frequency) results in two terms, two harmonics result in four, etc. """
+    def __init__(self, period, harmonics) : 
+        self._period = float(period)
+        self._harmonics = harmonics
+        self._coef = None
+
+    def no_coefficients(self, x) : 
+        """generates individual terms at the observation point x without
+        multiplying by coefficients. This is suitable for producing terms
+        used to fit the coefficients against data, or for multiplying 
+        with the coefficient vector. This vector does not contain
+        a constant term."""
+        return np.array( [np.exp(1j*2*np.pi*(i/self._period)*x )
+            for i in range(-self._harmonics, self._harmonics+1) if i!=0])
+
+    def getNumTerms(self) : 
+        return 2*self._harmonics
+
+    def setCoefficients(self, coef) : 
+        self._coef = coef
+
+    def getCoefficients(self) : 
+        return np.copy(self._coef)
+
+    def evaluate(self, x) : 
+        """Calculates the value of this truncated fourier series at the 
+        specified observation point."""
+        return (self.no_coefficients(x) * self._coef).sum()
+
+
+class SingleTerm(object) : 
+    """Abstract superclass to manage the special case where only a single
+    term is managed"""
+    def __init__(self, coef=None) : 
+        self._coef = coef
+
+    def getNumTerms(self) : 
+        return 1
+
+    def setCoefficients(self, coef) : 
+        self._coef = coef[0]
+
+    def getCoefficients(self) : 
+        return np.array( [self._coef], dtype=complex)
+
+class LinearTerm(SingleTerm) : 
+    """Models a linear term (w/o a constant)"""
+    def no_coefficients(self, x) : 
+        return np.array( [x], dtype = complex)
+
+    def evaluate(self, x): 
+        return x * self._coef
+
+class ConstantTerm (SingleTerm) : 
+    """Models a constant term"""
+    def no_coefficients(self, x) : 
+        return np.array( [1], dtype=complex) 
+    
+    def evaluate(self, x) : 
+        return self._coef
+        
+
+class AdditiveSeries (ModelEquation) : 
+    """Tracks one or more component series which each supply terms to an
+    overall series.""" 
+    
+    def __init__(self, series) : 
+        self._series = series
+        total_terms = 0 
+        series_terms = [ ] 
+        for s in series : 
+            curterms = s.getNumTerms()
+            series_terms.append(curterms)
+            total_terms = total_terms + curterms
+
+        self._series_terms = series_terms
+        self._total_terms = total_terms
+        
+
+    def getNumTerms(self) : 
+        return self._total_terms
+
+    def no_coefficients(self, x) : 
+        v = np.empty( (self._total_terms,), dtype=complex)
+        cur_terms = 0 
+        for i in range(len(self._series)) :
+            t = self._series_terms[i]
+            v[cur_terms:cur_terms+t] = self._series[i].no_coefficients(x)
+            cur_terms= cur_terms + t
+
+        return v
+            
+
+    def evaluate(self, x) : 
+        """Sum up the contributions of each component series."""
+        retval = 0 
+        for s in self._series : 
+            retval = retval + s.evaluate(x)
+        return retval 
+
+    def fit(self, time, obs) : 
+        """Fits the series. Returns the r squared value. Component 
+        series have their coefficients set."""
+        assert len(time) == len(obs), "Time and observation arrays must be the same length"
+        numterms = self._total_terms
+        numobs = len(obs)
+
+        # construct the exogeneous design matrix
+        matrix = np.empty( (numobs, numterms), dtype=complex ) 
+        for o in range(numobs) : 
+            matrix[o,:] = self.no_coefficients(time[o])
+
+        # wrap data with matrix class for lin alg operations
+        X = np.matrix(matrix, copy=False)
+        z = np.matrix(np.reshape(obs, (len(obs),1)), copy=False)
+
+        # fit data
+        b_hat = (X.H * X).I * X.H * z
+        print b_hat
+
+        self.setCoefficients(b_hat)
+
+    def setCoefficients(self, coef) : 
+        cur_terms = 0 
+        for i in range(len(self._series)) :
+            t = self._series_terms[i]
+            self._series[i].setCoefficients(coef[cur_terms:cur_terms+t])
+            cur_terms= cur_terms + t
+
+    def getCoefficients(self) : 
+        v = np.empty( (self._total_terms,), dtype=complex)
+        cur_terms = 0 
+        for i in range(len(self._series)) :
+            t = self._series_terms[i]
+            v[cur_terms:cur_terms+t] = self._series[i].getCoefficients()
+            cur_terms= cur_terms + t
+
+
+class AdditiveSines (AdditiveSeries) : 
+    def __init__(self, hf_period, hf_harmonics, lf_period, lf_harmonics) : 
+        series = [FourierSeries(lf_period, lf_harmonics),
+                  FourierSeries(hf_period, hf_harmonics)]
+        super(AdditiveSines, self).__init__(series)
+        self._constant = 0. 
+
+        
+def r_squared(y, f) : 
+
+    assert len(y)==len(f), "Arrays y and f must be same size"
+    
+    ybar = y.mean()
+    sstot = (( y - ybar )**2).sum()
+    ssres = (( y - f )**2).sum()
+    return 1 - (ssres/sstot)
+
+        
+        
+        
+
 def fft_grid(vector, outvar, d=0.25) : 
     """performs an fft individually for each pixel, along the time dimension."""
     for i in range(vector.shape[1]) : 
         if i%100 == 0 : 
             print i
         outvar[:,i] = f.fft(vector[:,i])
+    
+
+def pixelfit(obs, i, times, series, timeslice=slice(None,None,None)) : 
+    """Fits a series object to the time series of data contained within
+    a single pixel, optionally extracting the specified time period. 
+    Coefficients of the fit have been stored in the 
+    series. The rsquared of the fit is returned."""
+    # extract the domain over which the fit applies
+    t_extract    = times[timeslice]
+    obs_extract  = obs[timeslice,i]
+    return series.fit(t_extract, obs_extract)
+
+    
+
+    
+    
     
 
 
