@@ -213,7 +213,11 @@ class ExtendedVar(object) :
 
 class ModelEquation (object) : 
     """Abstract superclass to orchestrate some common operations"""
-    pass
+    def residuals(self, y, x) : 
+        """Given a list of independent values in x, calculate a 
+        vector of residuals as 'y - y_fit'."""
+        y_fit = np.squeeze(np.array([self.evaluate(x_i).real for x_i in x]))
+        return y - y_fit
 
 
 class FourierSeries(object) : 
@@ -322,25 +326,33 @@ class AdditiveSeries (ModelEquation) :
             retval = retval + s.evaluate(x)
         return retval 
 
-    def fit(self, time, obs) : 
+    def getDesignMatrix(self, time) : 
+        """Given a list of times, generates and returns a design
+        matrix suitable for use in a least squares regression."""
+        numterms = self._total_terms
+        numtimes = len(time)
+
+        # construct the exogeneous design matrix
+        matrix = np.empty( (numtimes, numterms), dtype=complex ) 
+        for o in range(numtimes) : 
+            matrix[o,:] = self.no_coefficients(time[o])
+
+        # wrap data with matrix class for lin alg operations
+        return np.matrix(matrix, copy=False)
+
+    def fit(self, time, obs, X=None) : 
         """Fits the series. Returns the r squared value. Component 
         series have their coefficients set."""
         assert len(time) == len(obs), "Time and observation arrays must be the same length"
         numterms = self._total_terms
-        numobs = len(obs)
-
-        # construct the exogeneous design matrix
-        matrix = np.empty( (numobs, numterms), dtype=complex ) 
-        for o in range(numobs) : 
-            matrix[o,:] = self.no_coefficients(time[o])
-
-        # wrap data with matrix class for lin alg operations
-        X = np.matrix(matrix, copy=False)
+        numtimes = len(time)
+        
+        if X == None : 
+            X = self.getDesignMatrix(time)
         z = np.matrix(np.reshape(obs, (len(obs),1)), copy=False)
 
         # fit data
         b_hat = (X.H * X).I * X.H * z
-        print b_hat
 
         self.setCoefficients(b_hat)
 
@@ -360,13 +372,54 @@ class AdditiveSeries (ModelEquation) :
             cur_terms= cur_terms + t
 
 
-class AdditiveSines (AdditiveSeries) : 
-    def __init__(self, hf_period, hf_harmonics, lf_period, lf_harmonics) : 
-        series = [FourierSeries(lf_period, lf_harmonics),
-                  FourierSeries(hf_period, hf_harmonics)]
-        super(AdditiveSines, self).__init__(series)
-        self._constant = 0. 
 
+class TrendFinder (object)  :
+    """Finds the trend in time series data by first calculating the 
+    residual to a fitted periodic function, then fitting a 
+    line through the residual. Many of the result parameters are retained."""
+    def __init__(self, obs, times, series, timeslice=slice(None,None,None)):
+        self.obs = obs
+        self.timeslice = timeslice
+        self.times = times[timeslice]
+        self.series = series
+        self.X1 = series.getDesignMatrix(times)
+        self.X2 = sm.add_constant(self.times)
+
+    def pixelfit(self, i) : 
+        """Fit the specified pixel"""
+        # fit the purely periodic part
+        obs_extract = self.obs[self.timeslice,i]
+        self.series.fit(self.times, obs_extract, self.X1)
+
+        # fit the linear trend to the residuals.
+        residuals = self.series.residuals(obs_extract, self.times)
+        results = sm.OLS(residuals, self.X2).fit()
+
+        slope = results.params[1]
+        slope_stderr = results.bse[1]
+        slope_pval   = results.pvalues[1]
+        return (slope, slope_stderr, slope_pval) 
+        
+    def fit_all_pixels(self) : 
+        """Runs the pixel fit for each pixel in the dataset. Retais the 
+        slope, stderr of the slope, and the pval for the slope parameter
+        for each pixel. The returned ndarray has three columns: 
+        slope, stderr of slope, and pvalue of slope. There is one row
+        for each pixel."""
+
+        numobs   = self.obs.shape[1]
+        out      = np.empty( (numobs,3), dtype=np.float64) 
+
+        for i in range(numobs) : 
+            if (i % 1000 == 0) : 
+                print i
+            out[i,:] = self.pixelfit(i)
+
+        return out
+        
+
+
+    
         
 def r_squared(y, f) : 
 
@@ -400,12 +453,6 @@ def pixelfit(obs, i, times, series, timeslice=slice(None,None,None)) :
     return series.fit(t_extract, obs_extract)
 
     
-
-    
-    
-    
-
-
 def linefit(vector,i,X,timeslice=slice(None,None,None)) : 
     # construct a linefit for the specified pixel across all the years in the dataset. 
     # return the slope and the r^2.
