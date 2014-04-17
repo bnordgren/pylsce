@@ -11,7 +11,7 @@ class CompressedAxes (object) :
     index. The strategy here implements the GDT netCDF conventions."""
     def __init__(self, dataset, c_dim) : 
         """Initializes a CompressedAxes object given a NetCDF dataset
-        and the name of the compressed dimension."""
+        and the name of the compressed dimension. """
         self._dataset = dataset
         self._c_dim   = c_dim
         self._initCompression()
@@ -51,13 +51,59 @@ class CompressedAxes (object) :
 
     def uncompress(self, vector) : 
         """Given a compressed vector, produce an uncompressed 
-        2d representation."""
+        2d representation. The vector must be the same length
+        as the compressed dimension in the NetCDF file."""
         index_var = self._dataset.variables[self._c_dim]
         retval = ma.masked_all( self._dimshape, dtype=vector.dtype ) 
         for i in range(len(vector)) : 
             retval[ self.getIndices(index_var[i]) ]  = vector[i]
         return retval
 
+    def compress(self, grid) : 
+        """Given a 2d grid, and the c_dim coordinate variable
+        in the netCDF file, create and return a vector representing
+        the compressed grid."""
+        num_pts = len(self._dataset.dimensions[self._c_dim])
+        v = np.empty( (num_pts,), dtype=grid.dtype)
+
+        c_dim_var = self._dataset.variables[self._c_dim]
+        for i in range(num_pts) : 
+            real_indices = self.getIndices(c_dim_var[i])
+            v[i]=grid[real_indices]
+
+        return v
+
+
+def compressedAxesFactory(ncfile, dimnames, c_dim, mask) : 
+    """Initializes a NetCDF file with the dimensions and coordinate
+    variables necessary to support a compressed axis representation of 
+    2D grids. Returns the dataset and a CompressedAxes instance."""
+    d = nc.Dataset(ncfile, 'w')
+
+    # make the uncompressed dimensions.
+    d.createDimension(dimnames[0], mask.shape[0])
+    d.createDimension(dimnames[1], mask.shape[1])
+
+    # make the compressed dimension and coordinate variable
+    bmask = np.array([mask[i,j]!=(-1) for i in range(mask.shape[0]) for j in range(mask.shape[1]) ])
+    bmask = bmask.reshape( (mask.shape[0], mask.shape[1]) )
+    num_good = np.count_nonzero(bmask)
+    d.createDimension(c_dim, num_good)
+    c_dim_var = d.createVariable(c_dim, 'i4', (c_dim,))
+    c_dim_var.compress = '%s %s' % dimnames
+
+    # populate the coordinate variable
+    ca = CompressedAxes(d, c_dim)
+    k = 0 
+    for i in range(bmask.shape[0]) : 
+        for j in range(bmask.shape[1]) : 
+            if bmask[i,j] : 
+                c_dim_var[k] = ca.getCompressedIndex( (i,j))
+                k = k + 1
+
+    return d, ca
+                
+    
         
 class ExtendUnlimited (object) : 
     """Opens a series of netcdf files, concatenating variables along
