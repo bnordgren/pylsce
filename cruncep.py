@@ -109,7 +109,11 @@ def cruncep_year(y) :
         
         # compress the grid for each timestep...
         for j in range(tsteps) : 
-            v[j,:] = ca.compress(np.squeeze(orig_v[j,:,:]))
+            if file_vars[i] == "swdown" :
+                # fix known units issue with the shortwave radiation
+                v[j,:] = ca.compress(np.squeeze(orig_v[j,:,:]/21600.))
+            else : 
+                v[j,:] = ca.compress(np.squeeze(orig_v[j,:,:]))
 
         d.close()
 
