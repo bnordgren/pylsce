@@ -88,6 +88,7 @@ def cruncep_year(y) :
         if ofile == None : 
             m = d.variables['mask'][:]
             ofile,ca = t.compressedAxesFactory(o_fname, dims, c_dim, m)
+            len_c_dim = len(ofile.dimensions[c_dim])
 
             lat = d.variables['latitude'][:]
             lon = d.variables['longitude'][:]
@@ -101,7 +102,8 @@ def cruncep_year(y) :
 
 
         orig_v = d.variables[orig_varnames[i]]
-        v = ofile.createVariable(orchidee_varnames[i], orig_v.dtype, ('tstep',c_dim))
+        v = ofile.createVariable(orchidee_varnames[i], orig_v.dtype, 
+                ('tstep',c_dim), chunksizes=(1,len_c_dim))
         v.title = orig_v.title
         v.units = orig_v.units
         

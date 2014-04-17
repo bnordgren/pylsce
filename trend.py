@@ -15,6 +15,7 @@ class CompressedAxes (object) :
         self._dataset = dataset
         self._c_dim   = c_dim
         self._initCompression()
+        self._realIndicies = None
 
     def _initCompression(self) : 
         dims = self._dataset.variables[self._c_dim].compress
@@ -66,10 +67,15 @@ class CompressedAxes (object) :
         num_pts = len(self._dataset.dimensions[self._c_dim])
         v = np.empty( (num_pts,), dtype=grid.dtype)
 
-        c_dim_var = self._dataset.variables[self._c_dim]
-        for i in range(num_pts) : 
-            real_indices = self.getIndices(c_dim_var[i])
-            v[i]=grid[real_indices]
+        if self._realIndicies == None : 
+            c_dim_var = self._dataset.variables[self._c_dim][:]
+            self._realIndicies = [ [], [] ]
+            for i in range(num_pts) : 
+                ind = self.getIndices(c_dim_var[i])
+                self._realIndicies[0].append(ind[0])
+                self._realIndicies[1].append(ind[1])
+
+        v[:]=grid[self._realIndicies]
 
         return v
 
