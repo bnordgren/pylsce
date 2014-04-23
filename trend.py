@@ -423,37 +423,14 @@ class AdditiveSeries (ModelEquation) :
             v[cur_terms:cur_terms+t] = self._series[i].getCoefficients()
             cur_terms= cur_terms + t
 
-
-
-class TrendFinder (object)  :
-    """Finds the trend in time series data by first calculating the 
-    residual to a fitted periodic function, then fitting a 
-    line through the residual. Many of the result parameters are retained."""
-    def __init__(self, obs, times, series, timeslice=slice(None,None,None)):
+class AbstractTrendFinder (object) : 
+    def __init__(self, obs, times, timeslice=slice(None,None,None)):
         self.obs = obs
         self.timeslice = timeslice
         self.times = times[timeslice]
-        self.series = series
-        self.X1 = series.getDesignMatrix(times)
-        self.X2 = sm.add_constant(self.times)
 
-    def pixelfit(self, i) : 
-        """Fit the specified pixel"""
-        # fit the purely periodic part
-        obs_extract = self.obs[self.timeslice,i]
-        self.series.fit(self.times, obs_extract, self.X1)
-
-        # fit the linear trend to the residuals.
-        residuals = self.series.residuals(obs_extract, self.times)
-        results = sm.OLS(residuals, self.X2).fit()
-
-        slope = results.params[1]
-        slope_stderr = results.bse[1]
-        slope_pval   = results.pvalues[1]
-        return (slope, slope_stderr, slope_pval) 
-        
     def fit_all_pixels(self) : 
-        """Runs the pixel fit for each pixel in the dataset. Retais the 
+        """Runs the pixel fit for each pixel in the dataset. Retains the 
         slope, stderr of the slope, and the pval for the slope parameter
         for each pixel. The returned ndarray has three columns: 
         slope, stderr of slope, and pvalue of slope. There is one row
@@ -469,8 +446,56 @@ class TrendFinder (object)  :
 
         return out
         
+    def getObs(self,i) : 
+        return self.obs[self.timeslice,i]
 
 
+
+class TrendFinder (AbstractTrendFinder)  :
+    """Finds the trend in time series data by first calculating the 
+    residual to a fitted periodic function, then fitting a 
+    line through the residual. Many of the result parameters are retained."""
+    def __init__(self, obs, times, series, timeslice=slice(None,None,None)):
+        super(TrendFinder, self).__init__(obs,times,timeslice)
+        self.series = series
+        self.X1 = series.getDesignMatrix(times)
+        self.X2 = sm.add_constant(self.times)
+
+    def pixelfit(self, i) : 
+        """Fit the specified pixel"""
+        # fit the purely periodic part
+        obs_extract = self.getObs(i)
+        self.series.fit(self.times, obs_extract, self.X1)
+
+        # fit the linear trend to the residuals.
+        residuals = self.series.residuals(obs_extract, self.times)
+        results = sm.OLS(residuals, self.X2).fit()
+
+        slope = results.params[1]
+        slope_stderr = results.bse[1]
+        slope_pval   = results.pvalues[1]
+        return (slope, slope_stderr, slope_pval) 
+        
+
+class RTrendFinder (AbstractTrendFinder) : 
+    """Finds the trend in the time series using one of the more robust
+    statistical estimators implemented in R."""
+    def __init__(self, obs, times, rclass, timeslice=slice(None,None,None)) :
+        super(RTrendFinder, self).__init__(obs,times,timeslice)
+        self.rclass = rclass
+
+    def pixelfit(self, i): 
+        """Fit the specified pixel using R"""
+        obs_extract = self.getObs(i)
+        r_fitter = self.rclass(obs_extract, self.times)
+        results = r_fitter.fit()
+        print results.params
+        slope = results.params[1]
+        slope_stderr = results.bse[1]
+        slope_pval = getattr(results, 'pvalues', None)
+        if len(slope_pval) >= 2 : 
+            slope_pval = slope_pval[1]
+        return (slope, slope_stderr, slope_pval)
     
         
 def r_squared(y, f) : 
