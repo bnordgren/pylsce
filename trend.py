@@ -489,7 +489,6 @@ class RTrendFinder (AbstractTrendFinder) :
         obs_extract = self.getObs(i)
         r_fitter = self.rclass(obs_extract, self.times)
         results = r_fitter.fit()
-        print results.params
         slope = results.params[1]
         slope_stderr = results.bse[1]
         slope_pval = getattr(results, 'pvalues', None)
