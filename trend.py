@@ -9,13 +9,14 @@ class CompressedAxes (object) :
     can calculate the compressed index given the individual indices,
     or it can calculate the individual indices given the compressed
     index. The strategy here implements the GDT netCDF conventions."""
-    def __init__(self, dataset, c_dim) : 
+    def __init__(self, dataset, c_dim, format='F') : 
         """Initializes a CompressedAxes object given a NetCDF dataset
         and the name of the compressed dimension. """
         self._dataset = dataset
         self._c_dim   = c_dim
         self._initCompression()
         self._realIndicies = None
+        self._format = format
 
     def _initCompression(self) : 
         dims = self._dataset.variables[self._c_dim].compress
@@ -40,10 +41,17 @@ class CompressedAxes (object) :
         for i in range(len(indices)) : 
             c_idx = c_idx + (indices[i]*self._dimfactors[i])
 
+        # convert to a "1-based"/Fortran array convention, if necessary
+        if self._format == 'F' : 
+            c_idx = c_idx + 1
+
         return c_idx
 
     def getIndices(self, c_idx) : 
         """Calculates the individual indices given the compressed index"""
+        if self._format == 'F' : 
+            c_idx = c_idx - 1
+
         indices = [0] * len(self._dimfactors)
         for i in range(len(self._dimfactors)) : 
             indices[i] = c_idx / self._dimfactors[i]
@@ -80,7 +88,7 @@ class CompressedAxes (object) :
         return v
 
 
-def compressedAxesFactory(ncfile, dimnames, c_dim, mask) : 
+def compressedAxesFactory(ncfile, dimnames, c_dim, mask, format='F') : 
     """Initializes a NetCDF file with the dimensions and coordinate
     variables necessary to support a compressed axis representation of 
     2D grids. Returns the dataset and a CompressedAxes instance."""
@@ -99,7 +107,7 @@ def compressedAxesFactory(ncfile, dimnames, c_dim, mask) :
     c_dim_var.compress = '%s %s' % dimnames
 
     # populate the coordinate variable
-    ca = CompressedAxes(d, c_dim)
+    ca = CompressedAxes(d, c_dim,format)
     k = 0 
     for i in range(bmask.shape[0]) : 
         for j in range(bmask.shape[1]) : 

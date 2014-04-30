@@ -21,7 +21,7 @@ file_vars = ['lwdown',
              'vwind']
 orchidee_varnames  = ['LWdown', 
              'Qair',
-             'Psurf',
+             'PSurf',
              'SWdown',
              'Tair',
              'Wind_E',
@@ -39,15 +39,21 @@ c_dim = 'land'
 
 def make_nav_latlon( lat, lon ) : 
     """Constructs the 2D variables nav_lat and nav_lon from the two
-    1D variables lat and lon."""
+    1D variables lat and lon. Note that the ORCHIDEE forcing file 
+    requires that we add half a cell to longitude and subtract half 
+    a cell from latitude relative to what is present in the cruncep
+    files."""
     nav_lat = np.empty( (lat.size, lon.size), dtype = lat.dtype)
     nav_lon = np.empty( (lat.size, lon.size), dtype = lon.dtype)
 
+    lat_res = (np.max(lat[:]) - np.min(lat[:]))/(lat.size-1)
+    lon_res = (np.max(lon[:]) - np.min(lon[:]))/(lon.size-1)
+
     for i in range(lat.size) : 
-        nav_lat[i,:] = [ lat[i] ] * lon.size
+        nav_lat[i,:] = [ lat[i] - (lat_res/2.) ] * lon.size
 
     for i in range(lon.size) : 
-        nav_lon[:,i] = [ lon[i] ] * lat.size
+        nav_lon[:,i] = [ lon[i] + (lon_res/2.) ] * lat.size
 
     return nav_lat, nav_lon
 
@@ -74,7 +80,7 @@ def init_time(d, y, timelen) :
     time.calendar = 'noleap'
     
     
-def partition_precip(ofile,ca,y)
+def partition_precip(ofile,ca,y): 
     """Partitions the total precipitation in the "rain" cruncep file
     into snowfall and rainfall. If the surface temperature is less than
     0 deg C, the precip is classified as snowfall, otherwise, rain.
@@ -88,17 +94,20 @@ def partition_precip(ofile,ca,y)
     tair   = ofile.variables['Tair']
     orig_v = d.variables['Total_Precipitation']
 
+    # input precip is mm/6-hr. output is kg/m^2/s
+    conversion = 1. / (3600.*6.)
+
 
     # create the output variables in the NetCDF file, and 
     # set the basic attributes
     snow = ofile.createVariable('Snowf', orig_v.dtype, ('tstep',c_dim),
             chunksizes=(1,len_c_dim))
     snow.title = "Snowfall"
-    snow.units = orig_v.units
+    snow.units = "kg/m^2/s"
     rain = ofile.createVariable('Rainf', orig_v.dtype, ('tstep',c_dim),
             chunksizes=(1,len_c_dim))
     rain.title = "Rainfall"
-    rain.units = orig_v.units
+    rain.units = "kg/m^2/s"
 
     # loop over the timesteps, partitioning and compressing
     # as we go.
@@ -111,11 +120,11 @@ def partition_precip(ofile,ca,y)
         temps = np.squeeze(tair[i,:])
 
         # read in and compress precip for all of timestep
-        precip = ca.compress(orig_v[i,:,:])
+        precip = ca.compress(orig_v[i,:,:]) * conversion
 
         # partition and copy data
         for j in range(len_c_dim) : 
-            if temps(j) > 273.15 : 
+            if temps[j] > 273.15 : 
                 r[j] = precip[i]
             else: 
                 s[j] = precip[i]
@@ -132,6 +141,7 @@ def cruncep_year(y) :
     o_fname = 'cruncep_halfdeg_%04d.nc' % y
     ofile = None
 
+    #for i in [ 4 ] : 
     for i in range(len(file_vars)) : 
         fname = 'cruncep_%s_%04d.nc' % (file_vars[i], y)
         print fname
