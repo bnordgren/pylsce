@@ -125,9 +125,9 @@ def partition_precip(ofile,ca,y):
         # partition and copy data
         for j in range(len_c_dim) : 
             if temps[j] > 273.15 : 
-                r[j] = precip[i]
+                r[j] = precip[j]
             else: 
-                s[j] = precip[i]
+                s[j] = precip[j]
 
         # write timestep to output file
         snow[i,:] = s
