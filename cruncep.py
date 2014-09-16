@@ -101,13 +101,15 @@ def partition_precip(ofile,ca,y):
     # create the output variables in the NetCDF file, and 
     # set the basic attributes
     snow = ofile.createVariable('Snowf', orig_v.dtype, ('tstep',c_dim),
-            chunksizes=(1,len_c_dim))
+            chunksizes=(1,len_c_dim), fill_value=1.e20)
     snow.title = "Snowfall"
     snow.units = "kg/m^2/s"
+    snow.missing_value = 1.e20
     rain = ofile.createVariable('Rainf', orig_v.dtype, ('tstep',c_dim),
-            chunksizes=(1,len_c_dim))
+            chunksizes=(1,len_c_dim), fill_value=1.e20)
     rain.title = "Rainfall"
     rain.units = "kg/m^2/s"
+    rain.missing_value = 1.e20
 
     # loop over the timesteps, partitioning and compressing
     # as we go.
@@ -166,9 +168,10 @@ def cruncep_year(y) :
 
         orig_v = d.variables[orig_varnames[i]]
         v = ofile.createVariable(orchidee_varnames[i], orig_v.dtype, 
-                ('tstep',c_dim), chunksizes=(1,len_c_dim))
+                ('tstep',c_dim), chunksizes=(1,len_c_dim), fill_value=1.e20)
         v.title = orig_v.title
         v.units = orig_v.units
+        v.missing_value = 1.e20
         
         # compress the grid for each timestep...
         for j in range(tsteps) : 
