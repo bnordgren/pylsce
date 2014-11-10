@@ -15,7 +15,7 @@ class CompressedAxes (object) :
         self._dataset = dataset
         self._c_dim   = c_dim
         self._initCompression()
-        self._realIndicies = None
+        self._realIndices = None
 
     def _initCompression(self) : 
         dims = self._dataset.variables[self._c_dim].compress
@@ -60,6 +60,18 @@ class CompressedAxes (object) :
             retval[ self.getIndices(index_var[i]) ]  = vector[i]
         return retval
 
+    def get_grid_indices(self) : 
+        if self._realIndices == None : 
+            num_pts = len(self._dataset.dimensions[self._c_dim])
+            c_dim_var = self._dataset.variables[self._c_dim][:]
+            self._realIndices = [ [], [] ]
+            for i in range(num_pts) : 
+                ind = self.getIndices(c_dim_var[i])
+                self._realIndices[0].append(ind[0])
+                self._realIndices[1].append(ind[1])
+        return self._realIndices
+        
+
     def compress(self, grid) : 
         """Given a 2d grid, and the c_dim coordinate variable
         in the netCDF file, create and return a vector representing
@@ -67,15 +79,9 @@ class CompressedAxes (object) :
         num_pts = len(self._dataset.dimensions[self._c_dim])
         v = np.empty( (num_pts,), dtype=grid.dtype)
 
-        if self._realIndicies == None : 
-            c_dim_var = self._dataset.variables[self._c_dim][:]
-            self._realIndicies = [ [], [] ]
-            for i in range(num_pts) : 
-                ind = self.getIndices(c_dim_var[i])
-                self._realIndicies[0].append(ind[0])
-                self._realIndicies[1].append(ind[1])
+        gi = self.get_grid_indices() 
 
-        v[:]=grid[self._realIndicies]
+        v[:]=grid[gi]
 
         return v
 
@@ -268,8 +274,12 @@ class ModelEquation (object) :
     def residuals(self, y, x) : 
         """Given a list of independent values in x, calculate a 
         vector of residuals as 'y - y_fit'."""
-        y_fit = np.squeeze(np.array([self.evaluate(x_i).real for x_i in x]))
-        return y - y_fit
+        return y - self.fitted_values(x)
+        
+    def fitted_values(self, x) : 
+        """Given a list of independent values in x, calculate the model's 
+        predicted value at each point."""
+        return np.squeeze(np.array([self.evaluate(x_i).real for x_i in x]))
 
 
 class FourierSeries(object) : 
