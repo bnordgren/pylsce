@@ -1,5 +1,5 @@
-"""Code to build a single year orchidee-parseable cruncep file from 
-the individual-variable cruncep files."""
+"""Code to build a single year orchidee-parseable forcing file from 
+the individual-variable wfdei files."""
 
 import trend as t
 import netCDF4 as nc
@@ -49,7 +49,7 @@ def make_nav_latlon( lat, lon ) :
     """Constructs the 2D variables nav_lat and nav_lon from the two
     1D variables lat and lon. Note that the ORCHIDEE forcing file 
     requires that we add half a cell to longitude and subtract half 
-    a cell from latitude relative to what is present in the cruncep
+    a cell from latitude relative to what is present in the wfdei
     files."""
     nav_lat = np.empty( (lat.size, lon.size), dtype = lat.dtype)
     nav_lon = np.empty( (lat.size, lon.size), dtype = lon.dtype)
