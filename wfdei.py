@@ -47,15 +47,21 @@ c_dim = 'land'
 
 def make_nav_latlon( lat, lon ) : 
     """Constructs the 2D variables nav_lat and nav_lon from the two
-    1D variables lat and lon."""
+    1D variables lat and lon. Note that the ORCHIDEE forcing file 
+    requires that we add half a cell to longitude and subtract half 
+    a cell from latitude relative to what is present in the cruncep
+    files."""
     nav_lat = np.empty( (lat.size, lon.size), dtype = lat.dtype)
     nav_lon = np.empty( (lat.size, lon.size), dtype = lon.dtype)
 
+    lat_res = (np.max(lat[:]) - np.min(lat[:]))/(lat.size-1)
+    lon_res = (np.max(lon[:]) - np.min(lon[:]))/(lon.size-1)
+
     for i in range(lat.size) : 
-        nav_lat[i,:] = [ lat[i] ] * lon.size
+        nav_lat[i,:] = [ lat[i] - (lat_res/2.) ] * lon.size
 
     for i in range(lon.size) : 
-        nav_lon[:,i] = [ lon[i] ] * lat.size
+        nav_lon[:,i] = [ lon[i] + (lon_res/2.) ] * lat.size
 
     return nav_lat, nav_lon
 
