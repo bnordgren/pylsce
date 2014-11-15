@@ -59,6 +59,9 @@ class NetCDFCopier (object) :
             dim_copy[:] = infile.variables[dim][:]
 
         infile.close()
+        
+    def createDimension(self, dim, size) : 
+        self._ncfile.createDimension(dim,size)
 
     def close(self) : 
         self._ncfile.close()
