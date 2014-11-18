@@ -25,7 +25,7 @@ file_vars = ['LWdown_WFDEI',
 #             'vwind']
 orchidee_varnames  = ['LWdown', 
              'Qair',
-             'Psurf',
+             'PSurf',
              'Rainf',
              'Snowf',
              'SWdown',
