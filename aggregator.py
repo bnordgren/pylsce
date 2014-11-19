@@ -60,6 +60,30 @@ class NetCDFCopier (object) :
 
         infile.close()
         
+    def copyVariable(self, varname) : 
+        """copies named variable and missing dimensions to output file"""
+        infile = self._openExemplar()
+        
+        # ensure dimensions exist in new file
+        dims = infile.variables[varname].dimensions
+        for d in dims : 
+            self.copyDimension(d)
+        
+        # create new variable
+        copy = self._ncfile.createVariable(varname, 
+                infile.variables[varname].dtype,
+                dims)
+
+        # copy data
+        copy[:] = infile.variables[varname][:]
+        
+        # copy the attributes over 
+        for a in infile.variables[varname].ncattrs() : 
+            setattr(copy, a, getattr(infile.variables[varname], a))
+            
+        infile.close()
+
+                
     def createDimension(self, dim, size) : 
         self._ncfile.createDimension(dim,size)
 
