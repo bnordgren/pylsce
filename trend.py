@@ -94,7 +94,7 @@ class CompressedAxes (object) :
         return v
 
 
-def compressedAxesFactory(ncfile, dimnames, c_dim, mask, format='F') : 
+def compressedAxesFactory(ncfile, dimnames, c_dim, mask=None, bmask=None, format='F') : 
     """Initializes a NetCDF file with the dimensions and coordinate
     variables necessary to support a compressed axis representation of 
     2D grids. Returns the dataset and a CompressedAxes instance."""
@@ -105,8 +105,11 @@ def compressedAxesFactory(ncfile, dimnames, c_dim, mask, format='F') :
     d.createDimension(dimnames[1], mask.shape[1])
 
     # make the compressed dimension and coordinate variable
-    bmask = np.array([mask[i,j]!=(-1) for i in range(mask.shape[0]) for j in range(mask.shape[1]) ])
-    bmask = bmask.reshape( (mask.shape[0], mask.shape[1]) )
+    if bmask is None : 
+        # cruncep input files have a "mask" variable, where "-1"
+        # means "not a good point"
+        bmask = np.array([mask[i,j]!=(-1) for i in range(mask.shape[0]) for j in range(mask.shape[1]) ])
+        bmask = bmask.reshape( (mask.shape[0], mask.shape[1]) )
     num_good = np.count_nonzero(bmask)
     d.createDimension(c_dim, num_good)
     c_dim_var = d.createVariable(c_dim, 'i4', (c_dim,))

@@ -110,7 +110,7 @@ def wfdei_year(y) :
             # If first time thru loop, init the output file
             if ofile == None : 
                 m = orig_v[0,:].mask
-                ofile,ca = t.compressedAxesFactory(o_fname, dims, c_dim, m)
+                ofile,ca = t.compressedAxesFactory(o_fname, dims, c_dim, bmask=m)
                 len_c_dim = len(ofile.dimensions[c_dim])
     
                 lat = d.variables['lat'][:]
