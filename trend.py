@@ -100,17 +100,18 @@ def compressedAxesFactory(ncfile, dimnames, c_dim, mask=None, bmask=None, format
     2D grids. Returns the dataset and a CompressedAxes instance."""
     d = nc.Dataset(ncfile, 'w')
 
-    # make the uncompressed dimensions.
-    d.createDimension(dimnames[0], mask.shape[0])
-    d.createDimension(dimnames[1], mask.shape[1])
-
     # make the compressed dimension and coordinate variable
     if bmask is None : 
         # cruncep input files have a "mask" variable, where "-1"
         # means "not a good point"
-        bmask = np.array([mask[i,j]!=(-1) for i in range(mask.shape[0]) for j in range(mask.shape[1]) ])
+        bmask = np.array([mask[i,j]==(-1) for i in range(mask.shape[0]) for j in range(mask.shape[1]) ])
         bmask = bmask.reshape( (mask.shape[0], mask.shape[1]) )
-    num_good = np.count_nonzero(bmask)
+
+    # make the uncompressed dimensions.
+    d.createDimension(dimnames[0], bmask.shape[0])
+    d.createDimension(dimnames[1], bmask.shape[1])
+
+    num_good = np.count_nonzero(bmask==False)
     d.createDimension(c_dim, num_good)
     c_dim_var = d.createVariable(c_dim, 'i4', (c_dim,))
     c_dim_var.compress = '%s %s' % dimnames
@@ -120,7 +121,7 @@ def compressedAxesFactory(ncfile, dimnames, c_dim, mask=None, bmask=None, format
     k = 0 
     for i in range(bmask.shape[0]) : 
         for j in range(bmask.shape[1]) : 
-            if bmask[i,j] : 
+            if not bmask[i,j] : 
                 c_dim_var[k] = ca.getCompressedIndex( (i,j))
                 k = k + 1
 
