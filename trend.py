@@ -85,11 +85,10 @@ class CompressedAxes (object) :
         in the netCDF file, create and return a vector representing
         the compressed grid."""
         num_pts = len(self._dataset.dimensions[self._c_dim])
-        v = np.empty( (num_pts,), dtype=grid.dtype)
 
         gi = self.get_grid_indices() 
 
-        v[:]=grid[gi]
+        v=grid[gi]
 
         return v
 
