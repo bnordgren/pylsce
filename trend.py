@@ -6,9 +6,12 @@ import netCDF4 as nc
 
 class CompressedAxes (object) : 
     """Given a compressed dimension in a netcdf file, this class
-    can calculate the compressed index given the individual indices,
+    can calculate the compressed (1d) index given the individual (2d) indices,
     or it can calculate the individual indices given the compressed
-    index. The strategy here implements the GDT netCDF conventions."""
+    index. The strategy here implements the GDT netCDF conventions.
+    
+    This class does not interpret physical location on the ground.
+    """
     def __init__(self, dataset, c_dim, format='F') : 
         """Initializes a CompressedAxes object given a NetCDF dataset
         and the name of the compressed dimension. """
@@ -84,8 +87,6 @@ class CompressedAxes (object) :
         """Given a 2d grid, and the c_dim coordinate variable
         in the netCDF file, create and return a vector representing
         the compressed grid."""
-        num_pts = len(self._dataset.dimensions[self._c_dim])
-
         gi = self.get_grid_indices() 
 
         v=grid[gi]
