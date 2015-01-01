@@ -20,6 +20,7 @@ class CompressedAxes (object) :
         self._initCompression()
         self._realIndices = None
         self._format = format
+        self._masks = None
 
     def _initCompression(self) : 
         dims = self._dataset.variables[self._c_dim].compress
@@ -65,13 +66,17 @@ class CompressedAxes (object) :
         """Given a compressed vector, produce an uncompressed 
         2d representation. The vector must be the same length
         as the compressed dimension in the NetCDF file."""
-        index_var = self._dataset.variables[self._c_dim]
-        retval = ma.masked_all( self._dimshape, dtype=vector.dtype ) 
-        for i in range(len(vector)) : 
-            retval[ self.getIndices(index_var[i]) ]  = vector[i]
-        return retval
+        gi = self.get_grid_indices()
+        
+        grid = ma.masked_all( self._dimshape, dtype=vector.dtype ) 
+        grid[gi] = vector
+        
+        grid = self.mask_grid(grid)
+            
+        return grid
 
     def get_grid_indices(self) : 
+        """returns the grid indices which correspond to the compressed vector representation"""
         if self._realIndices == None : 
             num_pts = len(self._dataset.dimensions[self._c_dim])
             c_dim_var = self._dataset.variables[self._c_dim][:]
@@ -90,9 +95,65 @@ class CompressedAxes (object) :
         gi = self.get_grid_indices() 
 
         v=grid[gi]
+        v = self.mask_vec(v)
 
         return v
+        
+    def is_masked(self) :
+        """returns true if a mask has been stored in this compressor"""
+        return self._masks is not None
+        
+    def mask_grid(self, grid) : 
+        """returns the provided grid masked by the stored grid mask"""
+        gmask = self.get_grid_mask() 
+        if gmask is None : 
+            return grid
+        grid = ma.array(grid, mask=gmask)
+        return grid
+        
+    def mask_vec(self, vec)  :
+        """returns the provided vector masked by the stored vector mask"""
+        vmask = self.get_vec_mask()
+        if vmask is None : 
+            return vec
+        vec = ma.array(vec, mask=vmask)
+        return vec
+        
+    def set_grid_mask(self, g_mask) : 
+        """sets the vector and grid masks to the provided value
+        
+        Future compression and uncompression routines will be masked using
+        the provided value.
+        """
+        v_mask = self.compress(g_mask) 
+        self._masks = (g_mask, v_mask)
+        
+    def get_grid_mask(self) : 
+        """returns the current grid mask, or None"""
+        g_mask = None
+        if self._masks is not None : 
+            g_mask = self._masks[0]
+        return g_mask
+        
+    def set_vec_mask(self, v_mask)  :
+        """sets the vector and grid masks to the provided value
+        
+        Future compression and uncompression routines will be masked using
+        the provided value.
+        """
+        g_mask = self.uncompress(v_mask)
+        self._masks = (g_mask, v_mask)
 
+    def get_vec_mask(self) : 
+        """returns the current vector mask, or None"""
+        v_mask = None
+        if self._masks is not None : 
+            v_mask = self._masks[1]
+        return v_mask
+    
+    def remove_mask(self) :
+        self._masks = None
+        
 
 def compressedAxesFactory(ncfile, dimnames, c_dim, mask=None, bmask=None, format='F') : 
     """Initializes a NetCDF file with the dimensions and coordinate
