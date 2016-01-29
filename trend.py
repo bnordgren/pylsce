@@ -88,6 +88,20 @@ class CompressedAxes (object) :
         return self._realIndices
         
 
+    def find_grid_indices(self, idx_2d)  :
+        """looks up the vector index corresponding to the 2d grid"""
+        gi = self.get_grid_indices() 
+        stop = len(gi[0])
+        i = 0 
+        done = False
+        while (i < stop) and not done :
+            done = (idx_2d[0] == gi[0][i]) and (idx_2d[1] == gi[1][i])
+            if not done: 
+                i += 1
+        if not done : 
+                return None
+        return i           
+        
     def compress(self, grid) : 
         """Given a 2d grid, and the c_dim coordinate variable
         in the netCDF file, create and return a vector representing
