@@ -167,7 +167,75 @@ class CompressedAxes (object) :
     
     def remove_mask(self) :
         self._masks = None
+
+class Window (object) : 
+    """Class sets or extracts a window of data defined by a lat/lon bounding
+    box. It operates on the 2D grid representation. The window is specified as a 
+    rectangular mask on this object's 2d grid.
+    
+    The dataset is expected to be a regular 2d grid, and the window is expected
+    to be a rectangular subset of that grid. Hence the window must be completely
+    contained within the dataset, and must be aligned.
+    
+    The primary function of this class is to transform between the 2d window
+    and the 2d dataset. Performing a transformation from dataset to window 
+    essentially returns a matrix trimmed to exactly the window. Performing a 
+    translation from window to dataset returns a masked array where all 
+    locations outside the window are masked.
+    
+    Latitudes are expected to be the rank zero dimension, and Longitudes are 
+    expected to be the rank one dimension.
+    """
+    def __init__(self, lats, lons, geog_box) :
+        """Creates a Window object.
         
+        lats is a 1d vector specifying the latitudes of the rank zero dimension,
+        lons is a 1d vector specifying the longitudes of the rank one dimension
+        geog_box is a 1d vector containing: 
+            - minimum longitude
+            - maximum longitude
+            - minimum latitude
+            - maximum latitude
+        """
+        self._lats = lats
+        self._lons = lons
+        self._geog_box = geog_box
+        self._dataset_shape = ( len(lats), len(lons) ) 
+        self._calc_window() 
+        
+    def _calc_window(self) :
+        idx_min_lon = np.where(self._lons==self._geog_box[0])[0][0]
+        idx_max_lon = np.where(self._lons==self._geog_box[1])[0][0]
+        idx_min_lat = np.where(self._lats==self._geog_box[2])[0][0]
+        idx_max_lat = np.where(self._lats==self._geog_box[3])[0][0]
+        
+        # make sure slices are arranged in ascending order by index
+        if idx_min_lon < idx_max_lon : 
+            idx_lon_slice = slice(idx_min_lon, idx_max_lon+1)
+        else : 
+            idx_lon_slice = slice(idx_max_lon, idx_min_lon+1)
+        if idx_min_lat < idx_max_lat : 
+            idx_lat_slice = slice(idx_min_lat, idx_max_lat+1)
+        else : 
+            idx_lat_slice = slice(idx_max_lat, idx_min_lat+1)
+            
+                
+        self._window = ( idx_lat_slice, idx_lon_slice ) 
+        self._window_shape = ( idx_lat_slice.stop - idx_lat_slice.start ,
+                               idx_lon_slice.stop - idx_lon_slice.start )
+                               
+    def set_window(self, data) : 
+        """returns an array the size of the dataset, with data correctly 
+        located in the window, and all other pixels masked.
+        Data must be a 2D array exactly the size of the window."""
+        ds = ma.masked_all(self._dataset_shape, dtype=data.dtype)
+        ds[self._window] = data
+        return ds
+        
+    def get_window(self, dataset) : 
+        """extracts and returns the window of data from the dataset."""
+        return dataset[self._window]
+      
 
 def compressedAxesFactory(ncfile, dimnames, c_dim, mask=None, bmask=None, format='F') : 
     """Initializes a NetCDF file with the dimensions and coordinate
